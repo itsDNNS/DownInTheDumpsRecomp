@@ -1,0 +1,22 @@
+# Corrections of the function boundaries found by Ghidra, for scripts/recomp.py.
+#   extend <function> <start> <end>   add [start, end) to the function's body
+#   code <address>                    code that is not inside any function (becomes its own entry)
+#   body <function> <start> <end> ... replace the function's body ranges
+
+# SendDBDspriteEch jumps into an unrolled per-pixel loop (0x1D58C + (width - 0x80) * 14) that ends
+# with a jump back into the function
+extend SendDBDspriteEch 0x1d58c 0x1f1b7
+
+# small code blocks between functions
+code 0x1c81d
+code 0x1d4a6
+code 0x2095f
+code 0x20a40
+code 0x2207f
+code 0x256be
+code 0x25845
+code 0x2f507
+
+# Ghidra put the code of FLX_Frame (which starts with an operand-size prefix) into OpenFile
+body OpenFile 0x1bb0c 0x1bb57
+body FLX_Frame 0x1bb58 0x1bbee

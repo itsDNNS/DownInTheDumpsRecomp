@@ -1,0 +1,69 @@
+# Functions of DID.EXE that are NOT recompiled but implemented natively by the port's host layer
+# (port/src/engine/host/*): C runtime file/string functions, the HMI SOS sound library and a few
+# hardware probes.  One name per line (Ghidra/debug-info names).
+
+# C runtime (Watcom)
+open
+close
+read
+write
+lseek
+filelength
+unlink
+rename
+mkdir
+chdir
+_dos_setdrive
+_dos_findfirst
+_dos_findnext
+_getdiskfree
+getenv
+printf
+puts
+exit
+_harderr
+int386
+__get_errno_ptr
+strcpy
+strncpy
+strcat
+strchr
+strrchr
+strlen
+stricmp
+strnicmp
+memset
+memcpy
+memmove
+abs
+atoi
+srand
+sqrt
+__CHP
+
+# HMI SOS sound library
+sosDIGIInitSystem
+sosDIGIUnInitSystem
+sosDIGIInitDriver
+sosDIGIUnInitDriver
+sosDIGIStartSample
+sosDIGIStopSample
+sosDIGISetSampleVolume
+sosDIGISetSampleRate
+sosDIGIGetSampleHandle
+sosDIGIGetBytesProcessed
+sosDIGIDetectInit
+sosDIGIDetectUnInit
+sosDIGIDetectFindHardware
+sosDIGIDetectFindFirst
+sosDIGIDetectFindNext
+sosDIGIDetectGetSettings
+sosTIMERInitSystem
+sosTIMERUnInitSystem
+sosTIMERRegisterEvent
+sosTIMERRemoveEvent
+sosTIMERAlterEventRate
+
+# hardware probes of the engine
+Speed_Calc
+CPU_Detect

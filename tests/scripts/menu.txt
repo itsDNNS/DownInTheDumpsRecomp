@@ -1,0 +1,3 @@
+# main menu: click to open the game options
+5 move 320 240
+6 click 320 240

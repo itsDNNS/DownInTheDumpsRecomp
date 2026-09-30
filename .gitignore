@@ -1,0 +1,33 @@
+# build output (contains code generated from the game's DID.EXE - never commit or publish it)
+build*/
+generated/
+*.exe
+blub
+blub_tests
+blub_view
+
+# game data and anything produced by playing - never commit
+*.iso
+*.ISO
+*.bin
+*.cue
+*.GAP
+*.GAQ
+*.EXP
+*.SPD
+ISOs/
+Saves/
+save/
+blub.ini
+blub.log
+DID.CFG
+
+# vendored SDL2 of the development setup (the build downloads SDL2)
+third_party/SDL2/
+
+# test / debug artefacts
+*.bmp
+*.wav
+*.dump
+__pycache__/
+*.pyc

@@ -1,0 +1,7 @@
+# skip the intro videos, then click the spaceship in the main menu (character talks)
+20 key 3920
+30 key 3920
+40 key 3920
+50 key 3920
+60 move 320 240
+62 click 320 240

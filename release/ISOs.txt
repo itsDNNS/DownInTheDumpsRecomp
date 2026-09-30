@@ -1,0 +1,33 @@
+Put the ISO images of your three original CDs of "Down in the Dumps" (Philips Media,
+1996) into this folder, for example:
+
+    Down in the Dumps (1996)(Philips)(DE)(Disc 1 of 3).iso
+    Down in the Dumps (1996)(Philips)(DE)(Disc 2 of 3).iso
+    Down in the Dumps (1996)(Philips)(DE)(Disc 3 of 3).iso
+
+The file names do not matter; the CDs are recognized by their contents (CD1, CD2,
+CD3). Real ISO images with 2048 bytes per sector (.iso) are needed; raw BIN/CUE
+images have to be converted to ISO first. Instead of the ISOs this folder may also
+contain the copied contents of the CDs (all three CDs in one folder).
+
+Without all three CDs the game starts, but the chapters on the missing CDs cannot be
+played (German release: CD 1 = chapter 3, CD 2 = chapters 1 and 2, CD 3 = chapters 4
+and 6).
+
+-----------------------------------------------------------------------------------
+
+In diesen Ordner gehören die ISO-Abbilder deiner drei Original-CDs von "Down in the
+Dumps" (Philips Media, 1996), zum Beispiel:
+
+    Down in the Dumps (1996)(Philips)(DE)(Disc 1 of 3).iso
+    Down in the Dumps (1996)(Philips)(DE)(Disc 2 of 3).iso
+    Down in the Dumps (1996)(Philips)(DE)(Disc 3 of 3).iso
+
+Die Dateinamen sind egal; die CDs werden an ihrem Inhalt erkannt (CD1, CD2, CD3).
+Nötig sind echte ISO-Abbilder mit 2048 Byte pro Sektor (.iso); Rohabbilder im Format
+BIN/CUE müssen vorher in ISO umgewandelt werden. Statt der ISOs kann dieser Ordner
+auch den kopierten Inhalt der CDs enthalten (alle drei CDs in einem Ordner).
+
+Ohne alle drei CDs startet das Spiel, aber die Kapitel auf den fehlenden CDs sind nicht
+spielbar (deutsche Fassung: CD 1 = Kapitel 3, CD 2 = Kapitel 1 und 2, CD 3 = Kapitel 4
+und 6).

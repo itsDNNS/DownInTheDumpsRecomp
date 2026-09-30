@@ -1,0 +1,105 @@
+Down in the Dumps (Philips Media / Haiku Studios, 1996) auf modernen Systemen
+=============================================================================
+
+Dieser Ordner enthält eine Neufassung des Spielprogramms für heutige Windows-Rechner
+(unter Linux und auf dem Steam Deck über Proton oder Wine). Das Originalprogramm
+DID.EXE lief unter DOS; es wurde Befehl für Befehl nach C++ übersetzt (statische
+Rekompilierung). DOS, die DOS-Speicherverwaltung, die VESA-Grafik, Maus,
+CD-Laufwerk und die Soundbibliothek werden von dieser Fassung nachgebildet.
+Es wird kein DOSBox benötigt.
+
+Die Spieldaten selbst (Grafik, Ton, Videos, Texte, Skripte und DID.EXE) sind NICHT
+enthalten. Sie werden beim Spielen direkt aus deinen Original-CDs gelesen; das Spiel
+läuft in der Sprache deiner CDs. Getestet mit der deutschen Fassung von 1996; andere
+Fassungen (z. B. englisch) laufen, wenn sie dieselbe DID.EXE enthalten - das prüft das
+Einstellungsfenster.
+
+
+So geht's
+---------
+
+1. Lege die ISO-Abbilder deiner drei Original-CDs in den Ordner "ISOs".
+   (Die Dateinamen sind egal.)
+
+2. Starte blub.exe (unter Linux: siehe unten).
+
+3. Im Einstellungsfenster sollte unter "Spiel" stehen:
+     "DID.EXE erkannt: Originalprogramm von 1996"
+     "Alle Kapitel vorhanden - bereit zum Spielen"
+   Dann auf "Spielen" klicken.
+
+Nach dem Beenden des Spiels kehrst du ins Einstellungsfenster zurück.
+
+
+Einstellungen
+-------------
+
+Spiel            Ordner mit den ISOs (voreingestellt: der Ordner "ISOs" hier),
+                 Ordner für Spielstände, "Intro wieder zeigen"
+Grafik           Vollbild, Fenstergröße (1x bis 4x), weiche Skalierung, VSync,
+                 flimmerfreie Seitenumschaltung
+Ton & Steuerung  Ton an/aus, Lautstärke, "Esc überspringt Videos"
+Info             Sprache des Einstellungsfensters (Deutsch/Englisch)
+"Original-Setup" startet das Setup-Programm der CD (Systemübersicht).
+
+Die Einstellungen stehen in blub.ini, die Spielstände im Ordner "Saves" -
+beides entsteht hier im Ordner beim ersten Start. Der ganze Ordner lässt sich
+verschieben oder auf einen anderen Rechner kopieren.
+
+
+Steuerung im Spiel
+------------------
+
+Maus             alles: zeigen, klicken, Gegenstände benutzen
+Leertaste        Video / Zwischensequenz überspringen (auf Wunsch auch Esc)
+P                Pause
+F11, Alt+Enter   Vollbild ein/aus
+Alt+F4           Spiel beenden
+
+
+Windows: Smart App Control
+--------------------------
+
+blub.exe ist nicht digital signiert. Ist unter Windows 11 "Smart App Control"
+eingeschaltet, kann Windows das Programm blockieren ("Eine
+Anwendungssteuerungsrichtlinie hat diese Datei blockiert"). Dann Smart App Control
+ausschalten: Windows-Sicherheit > App- und Browsersteuerung > Smart App Control.
+Seit dem Windows-Update vom April 2026 lässt es sich später wieder einschalten,
+ohne Windows neu zu installieren.
+
+Die Windows SmartScreen-Warnung "Der Computer wurde durch Windows geschützt"
+lässt sich über "Weitere Informationen" > "Trotzdem ausführen" übergehen.
+
+
+Linux und Steam Deck (Proton / Wine)
+------------------------------------
+
+Es gibt nur die Windows-Fassung; sie läuft unter Proton und Wine.
+
+Steam (auch Steam Deck):
+  1. Steam > "Spiele" > "Ein Nicht-Steam-Spiel zu meiner Bibliothek hinzufügen..." >
+     blub.exe aus diesem Ordner auswählen.
+  2. Rechtsklick auf den Eintrag > Eigenschaften > Kompatibilität >
+     "Die Verwendung eines bestimmten Steam Play-Kompatibilitätstools erzwingen" >
+     eine aktuelle Proton-Version.
+  3. Starten. Auf dem Steam Deck den Controller-Modus "Maus/Trackpad" wählen
+     (z. B. die Vorlage "Tastatur und Maus"): das Spiel wird nur mit der Maus gespielt.
+
+Wine:
+  wine blub.exe      (im Ordner dieses Spiels ausführen)
+
+Der ganze Ordner (mit den ISOs) muss für Proton/Wine erreichbar sein; ein Ordner im
+Home-Verzeichnis ist am einfachsten. Einstellungen und Spielstände liegen wie unter
+Windows hier im Ordner.
+
+
+Inhalt dieses Ordners
+---------------------
+
+blub.exe                  Spiel mit Einstellungsfenster (Windows 10/11, 64 Bit;
+                          Linux/Steam Deck über Proton oder Wine)
+ISOs\                     hierhin gehören deine CD-Abbilder
+Licenses\                 Lizenz dieses Ports (GNU GPL v3.0 oder später) und der verwendeten
+                          Bibliotheken (SDL2, Dear ImGui, tinyfiledialogs)
+LIESMICH.txt              diese Datei
+README.txt                dasselbe auf Englisch

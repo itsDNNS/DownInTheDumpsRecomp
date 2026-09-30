@@ -1,0 +1,4 @@
+# skip the videos with the space bar (Clavier: al == ' '), then look at the first scene
+30 key 3920
+40 key 3920
+50 key 3920

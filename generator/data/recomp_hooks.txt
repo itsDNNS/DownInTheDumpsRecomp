@@ -1,0 +1,8 @@
+# Host hooks in the recompiled code (host_hook(c, m, addr) runs before the original code).
+#   <function name>          hook at the function entry
+#   0x<address> <name>       hook before the instruction at that address
+# WaitTimer: the game polls the 16 Hz timer in a busy loop (WaitFrameTime); the host sleeps there.
+WaitTimer
+# PlayFIL waits for the audio callback in a loop with a timeout of 40 million iterations, calibrated
+# for 1996 CPUs; the host waits in real time instead.
+0x2CA87 PlayFIL_WaitSound
