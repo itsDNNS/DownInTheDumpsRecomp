@@ -131,7 +131,7 @@ void Machine::pump_events() {
             break;
         }
         case SDL_WINDOWEVENT:
-            if (e.window.event == SDL_WINDOWEVENT_EXPOSED) dirty = true;
+            dirty = true;                     // shown, exposed, resized: draw the picture again
             break;
         default: break;
         }
@@ -157,7 +157,7 @@ void Machine::run_script() {
         } else if (e.what == "shot") {
             char name[64];
             std::snprintf(name, sizeof name, "/script_%04d.bmp", shot_no++);
-            flush_window();
+            if (flush_window()) dirty = true;
             save_shot((cfg.shot_dir.empty() ? std::string(".") : cfg.shot_dir) + name);
         } else if (e.what == "hotspots") {
             hotspots = !hotspots;
@@ -198,7 +198,6 @@ void Machine::int16(Cpu &r) {
 void Machine::int33(Cpu &r) {
     const uint16_t ax = uint16_t(r.eax);
     auto lo = [](uint32_t &reg, uint32_t v) { reg = (reg & 0xFFFF0000u) | (v & 0xFFFF); };
-    const int x = std::clamp(mouse_x, mx_min, mx_max), y = std::clamp(mouse_y, my_min, my_max);
     switch (ax) {
     case 0x0000:                              // reset
         lo(r.eax, 0xFFFF);
@@ -206,10 +205,14 @@ void Machine::int33(Cpu &r) {
         break;
     case 0x0001: case 0x0002: break;         // show/hide: the game draws the pointer itself
     case 0x0003:
+        // the loops that wait for a click (pause screen, message boxes) ask for the mouse without ever
+        // waiting for the timer: sleep a little there instead of spinning
+        if (++mouse_polls > 8) SDL_Delay(1);
         poll();
+        present_if_due();                     // the pointer was drawn since the last request
         lo(r.ebx, uint32_t(mouse_buttons));
-        lo(r.ecx, uint32_t(x));
-        lo(r.edx, uint32_t(y));
+        lo(r.ecx, uint32_t(std::clamp(mouse_x, mx_min, mx_max)));
+        lo(r.edx, uint32_t(std::clamp(mouse_y, my_min, my_max)));
         break;
     case 0x0004: {
         mouse_x = int16_t(r.ecx);

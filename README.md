@@ -26,6 +26,11 @@ original engine.
   changed are scaled again, using all CPU cores
 - **hotspot display** (F2): shows the clickable areas of the current scene, read from the game's
   own button list (yellow: something happens on a click, blue: reacts to the pointer only)
+- **smooth mouse pointer**: like on the CRT monitors of 1996, the pointer moves at the refresh rate
+  of your screen (up to 240 Hz) – the game itself keeps its original frame rate (mostly 8 frames
+  per second)
+- light on the CPU: pictures are only drawn when something changed, and the pause screen and the
+  settings window wait for input instead of keeping a CPU core busy
 - portable: settings and saved games stay in the program folder
 - runs on Windows 10/11; on Linux and the Steam Deck with Proton or Wine
 - timing issues of the original fixed properly (video/sound synchronisation on fast CPUs, CD speed test)

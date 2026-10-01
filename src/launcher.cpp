@@ -284,12 +284,18 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
         if (calls > 0) shot_file.insert(shot_file.size() - 4, "_" + std::to_string(calls));
     }
     calls++;
+    // the window only changes on input: after a short while without events (ImGui's hover delays and
+    // tooltips need a few more frames) wait for the next event instead of drawing at the refresh rate
+    Uint32 active_until = SDL_GetTicks() + 600;
     while (running) {
         SDL_Event e;
+        if (shot_file.empty() && SDL_TICKS_PASSED(SDL_GetTicks(), active_until))
+            SDL_WaitEventTimeout(nullptr, ImGui::GetIO().WantTextInput ? 250 : 1000);   // text cursor blinks
         while (SDL_PollEvent(&e)) {
             ImGui_ImplSDL2_ProcessEvent(&e);
             if (e.type == SDL_QUIT) running = false;
             if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE) running = false;
+            active_until = SDL_GetTicks() + 600;
         }
         if (banner.for_dir != s.game_dir) build_banner(ren, banner, s.game_dir);
 

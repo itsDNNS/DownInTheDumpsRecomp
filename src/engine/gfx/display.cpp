@@ -242,18 +242,30 @@ void Display::present(const uint8_t *px, const Palette &pal, const std::vector<O
         if (upscaler_ == Upscaler::XBRZ) show = big_;
     }
     if (show == tex_) {
+        // only the rows that changed since the last picture (often just the mouse pointer)
+        int y0 = 0, y1 = SCREEN_H;
+        if (have_plain_ && std::memcmp(plain_pal_.data(), pal.data(), pal.size()) == 0) {
+            auto same = [&](int y) { return std::memcmp(&plain_px_[size_t(y) * SCREEN_W], px + size_t(y) * SCREEN_W, SCREEN_W) == 0; };
+            while (y0 < SCREEN_H && same(y0)) y0++;
+            while (y1 > y0 && same(y1 - 1)) y1--;
+        }
         uint32_t lut[256];
         for (int i = 0; i < 256; i++)
             lut[i] = 0xFF000000u | (uint32_t(pal[3 * i]) << 16) | (uint32_t(pal[3 * i + 1]) << 8) | pal[3 * i + 2];
         void *dst;
         int pitch;
-        if (SDL_LockTexture(tex_, nullptr, &dst, &pitch) == 0) {
-            for (int y = 0; y < SCREEN_H; y++) {
-                uint32_t *row = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(dst) + size_t(y) * pitch);
+        const SDL_Rect rows{0, y0, SCREEN_W, y1 - y0};
+        if (y0 < y1 && SDL_LockTexture(tex_, &rows, &dst, &pitch) == 0) {
+            for (int y = y0; y < y1; y++) {
+                uint32_t *row = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(dst) + size_t(y - y0) * pitch);
                 const uint8_t *src = px + size_t(y) * SCREEN_W;
                 for (int x = 0; x < SCREEN_W; x++) row[x] = lut[src[x]];
             }
             SDL_UnlockTexture(tex_);
+            plain_px_.resize(size_t(SCREEN_W) * SCREEN_H);
+            std::memcpy(&plain_px_[size_t(y0) * SCREEN_W], px + size_t(y0) * SCREEN_W, size_t(y1 - y0) * SCREEN_W);
+            plain_pal_ = pal;
+            have_plain_ = true;
         }
     }
     SDL_SetRenderDrawColor(ren_, 0, 0, 0, 255);
@@ -286,6 +298,18 @@ void Display::save_capture() {
         SDL_FreeSurface(s);
     }
     capture_.clear();
+}
+
+double Display::frame_interval() {
+    const Uint32 t = SDL_GetTicks();
+    if (interval_ <= 0 || SDL_TICKS_PASSED(t, interval_checked_ + 2000)) {   // the window may change screens
+        SDL_DisplayMode mode;
+        const int index = SDL_GetWindowDisplayIndex(win_);
+        const int hz = index >= 0 && SDL_GetCurrentDisplayMode(index, &mode) == 0 && mode.refresh_rate > 0 ? mode.refresh_rate : 60;
+        interval_ = 1.0 / std::clamp(hz, 30, 240);
+        interval_checked_ = t;
+    }
+    return interval_;
 }
 
 void Display::toggle_fullscreen() {

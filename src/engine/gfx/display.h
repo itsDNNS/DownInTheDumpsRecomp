@@ -52,6 +52,8 @@ public:
     void warp(int sx, int sy);
     // save the next presented picture as it appears in the window (upscaled, with the overlay)
     void capture_next(const std::string &bmp_path) { capture_ = bmp_path; }
+    // seconds between two pictures of the screen the window is on (its refresh rate)
+    double frame_interval();
 
 private:
     int xbrz_factor() const;
@@ -63,6 +65,12 @@ private:
     SDL_Texture *tex_ = nullptr;
     bool fullscreen_ = false;
     Upscaler upscaler_ = Upscaler::None;
+    double interval_ = 0;
+    uint32_t interval_checked_ = 0;
+    // plain picture: the last frame, only the rows that changed since are converted again
+    std::vector<uint8_t> plain_px_;
+    Palette plain_pal_{};
+    bool have_plain_ = false;
     // xBRZ: the 640x480 picture as RGB, the upscaled one, the texture it goes to, and the last
     // frame (only the rows that changed since are scaled again)
     SDL_Texture *big_ = nullptr;

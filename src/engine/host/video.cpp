@@ -11,27 +11,36 @@ constexpr uint32_t VRAM_KB = 2048;
 constexpr uint16_t MODE_640x480 = 0x101;
 }  // namespace
 
-void Machine::flush_window() {
-    const uint32_t off = bank * 0x10000u;
-    if (off + layout::VGA_WINDOW_SIZE <= vram.size()) std::memcpy(&vram[off], m.ptr(layout::VGA_WINDOW), layout::VGA_WINDOW_SIZE);
+// copies the bank window into the video memory; true if the visible page changed by that
+bool Machine::flush_window() {
+    const uint32_t off = bank * 0x10000u, size = layout::VGA_WINDOW_SIZE;
+    if (off + size > vram.size() || std::memcmp(&vram[off], m.ptr(layout::VGA_WINDOW), size) == 0) return false;
+    std::memcpy(&vram[off], m.ptr(layout::VGA_WINDOW), size);
+    return shows_bank();
+}
+
+// the bank window shows part of the visible page
+bool Machine::shows_bank() const {
+    const uint32_t off = bank * 0x10000u, start = std::min<uint32_t>(display_start, uint32_t(vram.size() - SCREEN_W * SCREEN_H));
+    return off + layout::VGA_WINDOW_SIZE > start && off < start + SCREEN_W * SCREEN_H;
 }
 
 void Machine::set_bank(uint32_t b) {
     if (b == bank) return;
-    flush_window();
+    if (flush_window()) dirty = true;
     bank = b;
     const uint32_t off = bank * 0x10000u;
     if (off + layout::VGA_WINDOW_SIZE <= vram.size())
         std::memcpy(m.ptr(layout::VGA_WINDOW), &vram[off], layout::VGA_WINDOW_SIZE);
     else
         std::memset(m.ptr(layout::VGA_WINDOW), 0, layout::VGA_WINDOW_SIZE);
-    dirty = true;
 }
 
 void Machine::present(bool force) {
-    last_present = uint64_t(now() * 1000.0);
+    last_present = now();
     if (!graphics) return;
     flush_window();
+    dirty = false;
     const uint32_t start = std::min<uint32_t>(display_start, uint32_t(vram.size() - SCREEN_W * SCREEN_H));
     std::vector<OverlayBox> boxes;
     if (hotspots) hotspot_boxes(boxes);
@@ -44,6 +53,19 @@ void Machine::present(bool force) {
     }
     display->present(&vram[start], pal, boxes);
     if (shot && !cfg.shot_presented) save_shot(cfg.shot_dir + name);
+}
+
+// changed since the last picture: the palette, a bank of the visible page that was drawn to and left,
+// or the bank window now (it only matters while it shows part of the visible page)
+bool Machine::screen_changed() {
+    if (!graphics) return false;
+    if (dirty) return true;
+    const uint32_t off = bank * 0x10000u, size = layout::VGA_WINDOW_SIZE;
+    return shows_bank() && off + size <= vram.size() && std::memcmp(&vram[off], m.ptr(layout::VGA_WINDOW), size) != 0;
+}
+
+void Machine::present_if_due() {
+    if (display && now() - last_present >= display->frame_interval() && screen_changed()) present(false);
 }
 
 void Machine::save_shot(const std::string &path) {
@@ -103,6 +125,7 @@ bool Machine::vesa(uint32_t &eax, uint32_t &ebx, uint32_t &ecx, uint32_t &edx, u
         std::memset(m.ptr(layout::VGA_WINDOW), 0, layout::VGA_WINDOW_SIZE);
         bank = 0;
         display_start = 0;
+        dirty = true;
         lo(eax, 0x004F);
         return true;
     case 0x4F03: lo(ebx, graphics ? MODE_640x480 : 3); lo(eax, 0x004F); return true;
@@ -155,9 +178,9 @@ uint32_t Machine::port_in(uint16_t port, int size) {
     case 0x3DA: {                             // input status: vertical retrace at 70 Hz
         double t = now() * 70.0;
         bool retrace = (t - double(uint64_t(t))) < 0.08;
-        if (retrace && !last_retrace) {
-            present(false);
+        if (retrace && !last_retrace) {      // the game waits for the retrace: its picture is complete
             poll();
+            present_if_due();
         }
         last_retrace = retrace;
         return retrace ? 0x09 : 0x00;
@@ -194,9 +217,12 @@ void Machine::port_out(uint16_t port, uint32_t value, int size) {
     case 0x3C9: {
         uint8_t v = uint8_t(value & 0x3F);
         dac[dac_write % 768] = v;
-        pal[dac_write % 768] = uint8_t((v << 2) | (v >> 4));
+        const uint8_t c = uint8_t((v << 2) | (v >> 4));
+        if (pal[dac_write % 768] != c) {      // the game also writes unchanged palettes
+            pal[dac_write % 768] = c;
+            dirty = true;
+        }
         dac_write = (dac_write + 1) % 768;
-        dirty = true;
         break;
     }
     default: break;

@@ -10,6 +10,9 @@ CD drive and the sound library are emulated by this build. No DOSBox needed.
 The game data itself (graphics, sound, videos, texts, scripts and DID.EXE) is NOT
 included. It is read directly from your original CDs while you play.
 
+The game keeps its original speed (mostly 8 frames per second); the mouse
+pointer moves smoothly at the refresh rate of your screen.
+
 The game runs in the language of your CDs; this build does not translate the game.
 It has been tested with the German release of 1996. Other releases (e.g. English)
 work if they contain the same DID.EXE - the settings window checks this. The

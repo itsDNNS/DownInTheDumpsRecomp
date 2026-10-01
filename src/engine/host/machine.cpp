@@ -182,11 +182,17 @@ void Machine::call_guest(uint32_t addr, bool with_arg, uint32_t stack_arg) {
 // WaitFrameTime calls WaitTimer until SystemTimer reaches the time of the next frame
 void Machine::idle_wait() {
     constexpr uint32_t NEXT_FRAME = 0x4097A, SYSTEM_TIMER = 0x5AC80;
+    mouse_polls = 0;
     poll();
+    present_if_due();                        // between two frames the pointer is redrawn here
     if (in_callback || m.r32(NEXT_FRAME) <= m.r32(SYSTEM_TIMER)) return;
     double due = now() + 0.002;
     for (auto &ev : timers)
         if (ev.fn && ev.rate > 0) due = std::min(due, ev.next);
+    if (display) {                           // wake up when the next picture may be shown
+        const double next_picture = last_present + display->frame_interval();
+        if (next_picture > now()) due = std::min(due, next_picture);
+    }
     const double wait = due - now();
     if (wait > 0.0005) SDL_Delay(uint32_t(wait * 1000.0));
 }
@@ -209,8 +215,11 @@ void Machine::poll() {
         if (cfg.quit_after > 0 && t > cfg.quit_after) quit_requested = true;
         check_quit();
     }
-    // screens that are drawn without waiting for the vertical retrace still show up
-    if (t * 1000.0 - double(last_present) > 50.0) present(false);
+    // screens that are drawn without any wait still show up; the hotspot overlay follows the buttons
+    // even while the picture stays the same; test screenshots are taken in present()
+    if ((t - last_present > 0.05 && screen_changed()) || (hotspots && t - last_present > 0.1) ||
+        (!cfg.shot_dir.empty() && t - last_shot >= cfg.shot_interval))
+        present(false);
 }
 
 // ---------------------------------------------------------------- Cpu hooks
@@ -262,6 +271,7 @@ void host_hook(Cpu &c, Arena &m, uint32_t addr) {
         if (c.eax == 0x2625A00u - 1) started = mc.now();
         if (m.r16(0x5AC8A) != 1) break;
         mc.poll();
+        mc.present_if_due();                 // the video frame is complete
         if (m.r16(0x5AC8A) != 1) break;
         if (mc.now() - started > 1.0) c.eax = 1;     // give up after one second
         else SDL_Delay(1);

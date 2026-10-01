@@ -139,8 +139,14 @@ public:
     void int10(Cpu &r);
     bool vesa(uint32_t &eax, uint32_t &ebx, uint32_t &ecx, uint32_t &edx, uint32_t es_di_linear);
     void set_bank(uint32_t bank);
-    void flush_window();
+    bool flush_window();
+    bool shows_bank() const;
     void present(bool force);
+    // the picture also changes between the game's frames (it draws its mouse pointer while it waits for
+    // the next one): show changes at the refresh rate of the display, from points where the picture is
+    // complete (the frame wait, mouse requests, the vertical retrace)
+    void present_if_due();
+    bool screen_changed();
     void hotspot_boxes(std::vector<OverlayBox> &out);     // host/hotspots.cpp
     bool hotspots = false;                   // F2: show the clickable areas
     uint32_t port_in(uint16_t port, int size);
@@ -153,8 +159,8 @@ public:
     std::array<uint8_t, 768> dac{};
     int dac_write = 0, dac_read = 0;
     bool last_retrace = false;
-    uint64_t last_present = 0;
-    bool dirty = true;
+    double last_present = -1;                // now() of the last picture
+    bool dirty = true;                       // the visible picture changed since then (palette, a bank)
 
     // --- input (host/input.cpp)
     void int16(Cpu &r);
@@ -163,6 +169,7 @@ public:
     std::deque<uint16_t> keys;               // BIOS keys: scan code << 8 | ascii
     int mouse_x = 0, mouse_y = 0;            // in mouse driver coordinates
     int mouse_buttons = 0;
+    int mouse_polls = 0;                     // position requests since the last WaitTimer
     int mx_min = 0, mx_max = 639, my_min = 0, my_max = 479;
     int mouse_scale = 4;                     // the game works with pixel * 4
     bool quit_requested = false;

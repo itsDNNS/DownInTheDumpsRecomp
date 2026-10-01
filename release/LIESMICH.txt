@@ -8,6 +8,9 @@ Rekompilierung). DOS, die DOS-Speicherverwaltung, die VESA-Grafik, Maus,
 CD-Laufwerk und die Soundbibliothek werden von dieser Fassung nachgebildet.
 Es wird kein DOSBox benötigt.
 
+Das Spiel behält sein Originaltempo (meist 8 Bilder pro Sekunde); der
+Mauszeiger bewegt sich flüssig mit der Bildwiederholrate deines Bildschirms.
+
 Die Spieldaten selbst (Grafik, Ton, Videos, Texte, Skripte und DID.EXE) sind NICHT
 enthalten. Sie werden beim Spielen direkt aus deinen Original-CDs gelesen; das Spiel
 läuft in der Sprache deiner CDs. Getestet mit der deutschen Fassung von 1996; andere
