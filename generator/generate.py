@@ -124,8 +124,12 @@ def main():
 
     out = Path(a.out).resolve()
     obj = out / 'obj'
+    (out / 'stamp.txt').unlink(missing_ok=True)      # written again only when everything is done
     for d in (obj, out / 'recomp', out / 'codec'):
         d.mkdir(parents=True, exist_ok=True)
+        for old in d.iterdir():                        # no leftovers of an earlier generation
+            if old.is_file():
+                old.unlink()
     sys.path.insert(0, str(HERE))
     import le_loader
     r = le_loader.load(data)

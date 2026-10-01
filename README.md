@@ -66,7 +66,8 @@ python tools/package.py --build build
 `BLUB_GAME_DATA` may be a folder with the ISO images (also in subfolders), a single CD 1 ISO, a
 folder with the CD contents, or `DID.EXE` itself. CMake then runs `generator/generate.py`, which
 reads `DID.EXE`, checks it, and writes the generated C++ to `build/generated/`. SDL2 is downloaded
-by CMake (pinned release) and linked statically.
+by CMake (pinned release) and linked statically. After an update of this repository just build
+again: when the generator or its configuration changed, the game code is generated anew.
 
 `tools/package.py` puts the ready-to-play folder into `build/Down in the Dumps/`. Copy your three
 ISO images into its `ISOs` folder and start `blub.exe`.

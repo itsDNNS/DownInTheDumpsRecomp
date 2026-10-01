@@ -17,7 +17,22 @@ set(BLUB_GAME_DATA "" CACHE PATH
     "the original game: folder with the ISO images of the CDs (or their contents), a CD 1 ISO, or DID.EXE")
 set(BLUB_GENERATED "${CMAKE_BINARY_DIR}/generated")
 find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter)
-if(NOT EXISTS "${BLUB_GENERATED}/stamp.txt")
+# the generated code also depends on the generator and its configuration: when they change (e.g.
+# after an update of this repository) it is generated again
+file(GLOB BLUB_GENERATOR_FILES LIST_DIRECTORIES false CONFIGURE_DEPENDS
+     "${CMAKE_SOURCE_DIR}/generator/*.py" "${CMAKE_SOURCE_DIR}/generator/data/*")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${BLUB_GENERATOR_FILES})
+set(generator_hashes "")
+foreach(f IN LISTS BLUB_GENERATOR_FILES)
+  file(SHA256 "${f}" h)
+  string(APPEND generator_hashes "${h}")
+endforeach()
+string(SHA256 BLUB_GENERATOR_HASH "${generator_hashes}")
+set(generated_stamp "")
+if(EXISTS "${BLUB_GENERATED}/stamp.txt")
+  file(READ "${BLUB_GENERATED}/stamp.txt" generated_stamp)
+endif()
+if(NOT generated_stamp MATCHES "generator ${BLUB_GENERATOR_HASH}")
   if(NOT BLUB_GAME_DATA)
     message(FATAL_ERROR
       "The game code is generated from your original CDs. Configure with\n"
@@ -32,6 +47,7 @@ if(NOT EXISTS "${BLUB_GENERATED}/stamp.txt")
   if(NOT gen_result EQUAL 0)
     message(FATAL_ERROR "Generating the game code failed (see above)")
   endif()
+  file(APPEND "${BLUB_GENERATED}/stamp.txt" "generator ${BLUB_GENERATOR_HASH}\n")
 endif()
 file(GLOB GENERATED_SOURCES "${BLUB_GENERATED}/recomp/*.cpp" "${BLUB_GENERATED}/codec/*.cpp")
 
