@@ -37,8 +37,10 @@ Settings
 
 Game               folder with the ISOs (default: the "ISOs" folder here),
                    folder for saved games, "Show intro again"
-Display            fullscreen, window size (1x to 4x), smooth scaling, VSync,
+Display            fullscreen, window size (1x to 4x), scaling, VSync,
                    flicker-free page flipping
+                   Scaling: "Sharp pixels" like the original, "Smooth" (blurred)
+                   or "xBRZ" (high quality: smooth, sharp edges)
 Sound & controls   sound on/off, volume, "Esc skips videos"
 Info               language of the settings window
 "Original setup" starts the setup program of the CD (system overview).
@@ -54,6 +56,9 @@ Controls in the game
 Mouse            everything: look, click, use objects
 Space bar        skip video / cut scene (optionally also Esc)
 P                pause
+F2               show hotspots on/off: the clickable areas of the scene
+                 (yellow: something happens on a click, blue: reacts to the
+                 pointer only)
 F11, Alt+Enter   fullscreen on/off
 Alt+F4           quit the game
 
@@ -99,6 +104,6 @@ blub.exe          the game with its settings window (Windows 10/11, 64 bit;
                   Linux/Steam Deck through Proton or Wine)
 ISOs\             put your CD images here
 Licenses\         license of this port (GNU GPL v3.0 or later) and of the libraries used
-                  (SDL2, Dear ImGui, tinyfiledialogs)
+                  (SDL2, Dear ImGui, tinyfiledialogs, xBRZ)
 README.txt        this file
 LIESMICH.txt      the same in German

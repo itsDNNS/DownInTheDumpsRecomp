@@ -28,6 +28,7 @@ struct SDL_Window;
 namespace blub {
 
 class Display;
+struct OverlayBox;
 
 struct HostConfig {
     std::string game;                     // game data: folder with the disc contents and/or ISO images
@@ -36,6 +37,7 @@ struct HostConfig {
     int scale = 2;
     bool fullscreen = false;
     bool smooth = false;
+    bool xbrz = false;                    // xBRZ upscaling
     bool nosound = false;
     bool dualpage = true;                 // /DUALPAGE: page flipping instead of drawing on screen
     bool vsync = true;
@@ -45,6 +47,7 @@ struct HostConfig {
     // testing
     std::string shot_dir;                 // save the screen as BMP every shot_interval seconds
     double shot_interval = 1.0;
+    bool shot_presented = false;          // ... as shown in the window (upscaled, with the overlay)
     double quit_after = 0;                // seconds; 0 = run until the game ends
     std::string wav;                      // record the mixed sound to this WAV file
     std::string script;                   // scripted input: lines "<seconds> click|rclick|move|key <args>"
@@ -138,6 +141,8 @@ public:
     void set_bank(uint32_t bank);
     void flush_window();
     void present(bool force);
+    void hotspot_boxes(std::vector<OverlayBox> &out);     // host/hotspots.cpp
+    bool hotspots = false;                   // F2: show the clickable areas
     uint32_t port_in(uint16_t port, int size);
     void port_out(uint16_t port, uint32_t value, int size);
     std::unique_ptr<Display> display;

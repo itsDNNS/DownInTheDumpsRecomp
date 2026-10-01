@@ -3,7 +3,7 @@
     <out>/blub.exe (or blub)        the game with its settings window
     <out>/README.txt, LIESMICH.txt  instructions (English, German)
     <out>/ISOs/                     where the player puts the CD images
-    <out>/Licenses/                 license of this port (GPL-3.0) and of SDL2, Dear ImGui, tinyfiledialogs
+    <out>/Licenses/                 license of this port (GPL-3.0) and of SDL2, Dear ImGui, tinyfiledialogs, xBRZ
 
 Usage: python tools/package.py --build <build dir> [--out <folder>]
 The folder contains only this port - no code or data of the game.
@@ -45,6 +45,7 @@ def main():
     crlf(ROOT / 'LICENSE', out / 'Licenses' / 'blub (GPL-3.0).txt')
     crlf(ROOT / 'third_party' / 'imgui' / 'LICENSE.txt', out / 'Licenses' / 'Dear ImGui.txt')
     crlf(rel / 'tinyfiledialogs.txt', out / 'Licenses' / 'tinyfiledialogs.txt')
+    crlf(ROOT / 'third_party' / 'xbrz' / 'License.txt', out / 'Licenses' / 'xBRZ (GPL-3.0).txt')
     if sdl_license:
         crlf(sdl_license, out / 'Licenses' / 'SDL2.txt')
     elif exe.suffix == '.exe':

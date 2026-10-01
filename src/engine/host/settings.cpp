@@ -93,6 +93,7 @@ bool Settings::load(const std::string &path) {
         else if (k == "fullscreen") fullscreen = to_bool(v);
         else if (k == "scale") scale = std::clamp(std::atoi(v.c_str()), 1, 6);
         else if (k == "smooth") smooth = to_bool(v);
+        else if (k == "upscaler") xbrz = v == "xbrz";
         else if (k == "vsync") vsync = to_bool(v);
         else if (k == "dualpage") dualpage = to_bool(v);
         else if (k == "sound") sound = to_bool(v);
@@ -116,6 +117,7 @@ bool Settings::save(const std::string &path) const {
         << "fullscreen = " << b(fullscreen) << "\n"
         << "scale = " << scale << "\n"
         << "smooth = " << b(smooth) << "\n"
+        << "upscaler = " << (xbrz ? "xbrz" : "none") << "\n"
         << "vsync = " << b(vsync) << "\n"
         << "dualpage = " << b(dualpage) << "\n"
         << "[sound]\n"

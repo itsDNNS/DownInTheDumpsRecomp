@@ -33,13 +33,17 @@ void Machine::present(bool force) {
     if (!graphics) return;
     flush_window();
     const uint32_t start = std::min<uint32_t>(display_start, uint32_t(vram.size() - SCREEN_W * SCREEN_H));
-    display->present(&vram[start], pal);
-    if (!cfg.shot_dir.empty() && now() - last_shot >= cfg.shot_interval) {
+    std::vector<OverlayBox> boxes;
+    if (hotspots) hotspot_boxes(boxes);
+    const bool shot = !cfg.shot_dir.empty() && now() - last_shot >= cfg.shot_interval;
+    char name[64];
+    if (shot) {
         last_shot = now();
-        char name[64];
         std::snprintf(name, sizeof name, "/shot_%04d.bmp", shot_no++);
-        save_shot(cfg.shot_dir + name);
+        if (cfg.shot_presented) display->capture_next(cfg.shot_dir + name);
     }
+    display->present(&vram[start], pal, boxes);
+    if (shot && !cfg.shot_presented) save_shot(cfg.shot_dir + name);
 }
 
 void Machine::save_shot(const std::string &path) {

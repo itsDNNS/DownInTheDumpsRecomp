@@ -19,8 +19,13 @@ original engine.
 ## Features
 
 - plays directly from the **ISO images of the three original CDs** (no installation, no disc swapping)
-- settings window: game data, fullscreen, window size (1x–4x), smooth scaling, VSync, volume,
-  "Esc skips videos", German / English
+- settings window: game data, fullscreen, window size (1x–4x), scaling (sharp pixels, smooth or
+  the [xBRZ](https://sourceforge.net/projects/xbrz/) upscaler), VSync, volume, "Esc skips videos",
+  German / English
+- **xBRZ upscaling**: smooth, sharp edges instead of big pixels; only the parts of the picture that
+  changed are scaled again, using all CPU cores
+- **hotspot display** (F2): shows the clickable areas of the current scene, read from the game's
+  own button list (yellow: something happens on a click, blue: reacts to the pointer only)
 - portable: settings and saved games stay in the program folder
 - runs on Windows 10/11; on Linux and the Steam Deck with Proton or Wine
 - timing issues of the original fixed properly (video/sound synchronisation on fast CPUs, CD speed test)
@@ -76,6 +81,7 @@ ends you are back in the settings window.
 | Mouse | everything: look, click, use objects |
 | Space (optionally Esc) | skip video / cut scene |
 | P | pause |
+| F2 | show hotspots (clickable areas) on/off |
 | F11, Alt+Enter | fullscreen on/off |
 | Alt+F4 | quit |
 
@@ -101,9 +107,10 @@ generator/   generate.py   finds DID.EXE on the CD (ISO 9660 or folder), checks 
 src/engine/  recomp/       runtime of the generated code: CPU state, flags, x87, memory arena
              host/         the machine: DOS files (read-only from the discs, writes to the save
                            folder), DPMI, VESA 640x480 with bank switching and page flipping, VGA
-                           palette, mouse, keyboard, MSCDEX, timer, SOS sound mixer, C runtime
+                           palette, mouse, keyboard, MSCDEX, timer, SOS sound mixer, C runtime,
+                           hotspot display (reads the game's button tree)
              data/         game data access: ISO 9660 reader, GAP archives, LE executables
-             codec/, gfx/  codecs used by the tests, SDL display
+             codec/, gfx/  codecs used by the tests, SDL display with the xBRZ upscaler
 src/         main.cpp, launcher.cpp (settings window, Dear ImGui)
 tests/       codec and recompilation tests against reference data made with the original code
 tools/       package.py
@@ -133,3 +140,4 @@ builds** (e.g. `blub.exe`) – share the source code instead.
 - [SDL2](https://www.libsdl.org/) – zlib license (downloaded at build time)
 - [Dear ImGui](https://github.com/ocornut/imgui) – MIT license (`third_party/imgui`)
 - [tinyfiledialogs](https://sourceforge.net/projects/tinyfiledialogs/) – zlib license (`third_party/tinyfiledialogs`)
+- [xBRZ](https://sourceforge.net/projects/xbrz/) 1.9 – GNU GPL v3.0 (`third_party/xbrz`)

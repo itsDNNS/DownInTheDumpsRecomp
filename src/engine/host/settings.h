@@ -14,6 +14,7 @@ struct Settings {
     bool fullscreen = false;
     int scale = 2;                        // window size in multiples of 640x480
     bool smooth = false;                  // linear filtering when scaling
+    bool xbrz = false;                    // xBRZ upscaling (high quality, instead of the above)
     bool vsync = true;
     bool dualpage = true;                 // page flipping (/DUALPAGE) instead of drawing on screen
     // sound

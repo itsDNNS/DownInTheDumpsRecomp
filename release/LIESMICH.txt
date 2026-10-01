@@ -36,8 +36,10 @@ Einstellungen
 
 Spiel            Ordner mit den ISOs (voreingestellt: der Ordner "ISOs" hier),
                  Ordner für Spielstände, "Intro wieder zeigen"
-Grafik           Vollbild, Fenstergröße (1x bis 4x), weiche Skalierung, VSync,
+Grafik           Vollbild, Fenstergröße (1x bis 4x), Skalierung, VSync,
                  flimmerfreie Seitenumschaltung
+                 Skalierung: "Scharfe Pixel" wie im Original, "Weich" (verwaschen)
+                 oder "xBRZ" (hohe Qualität: glatte, scharfe Kanten)
 Ton & Steuerung  Ton an/aus, Lautstärke, "Esc überspringt Videos"
 Info             Sprache des Einstellungsfensters (Deutsch/Englisch)
 "Original-Setup" startet das Setup-Programm der CD (Systemübersicht).
@@ -53,6 +55,8 @@ Steuerung im Spiel
 Maus             alles: zeigen, klicken, Gegenstände benutzen
 Leertaste        Video / Zwischensequenz überspringen (auf Wunsch auch Esc)
 P                Pause
+F2               Hotspots ein/aus: die anklickbaren Stellen der Szene
+                 (gelb: ein Klick bewirkt etwas, blau: reagiert nur auf den Zeiger)
 F11, Alt+Enter   Vollbild ein/aus
 Alt+F4           Spiel beenden
 
@@ -100,6 +104,6 @@ blub.exe                  Spiel mit Einstellungsfenster (Windows 10/11, 64 Bit;
                           Linux/Steam Deck über Proton oder Wine)
 ISOs\                     hierhin gehören deine CD-Abbilder
 Licenses\                 Lizenz dieses Ports (GNU GPL v3.0 oder später) und der verwendeten
-                          Bibliotheken (SDL2, Dear ImGui, tinyfiledialogs)
+                          Bibliotheken (SDL2, Dear ImGui, tinyfiledialogs, xBRZ)
 LIESMICH.txt              diese Datei
 README.txt                dasselbe auf Englisch

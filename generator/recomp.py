@@ -233,6 +233,9 @@ class FuncLifter:
             parts.append('%s * %d' % (idx, mm.scale) if mm.scale != 1 else idx)
         if mm.disp or not parts:
             parts.append('0x%Xu' % (mm.disp & 0xFFFFFFFF))
+        if i.addr_size == 2:
+            # address-size prefix (67h): a 16-bit effective address that wraps at 64 KB
+            return '(uint32_t)(uint16_t)(%s)' % ' + '.join(parts)
         return '(uint32_t)(%s)' % ' + '.join(parts)
 
     def read(self, i, op, size=None):
@@ -384,7 +387,10 @@ class FuncLifter:
             return 'if (%s) { %s }' % (COND[mn], self.target_code(t, True))
         if mn in ('loop', 'loope', 'loopne'):
             t = ops[0].imm
-            cond = {'loop': '--ecx != 0', 'loope': '--ecx != 0 && f.zf', 'loopne': '--ecx != 0 && !f.zf'}[mn]
+            # with the address-size prefix (67h) the counter is CX, not ECX
+            dec = '((ecx = (ecx & 0xFFFF0000u) | (uint16_t)(ecx - 1)) & 0xFFFFu) != 0' if i.addr_size == 2 \
+                else '--ecx != 0'
+            cond = {'loop': dec, 'loope': dec + ' && f.zf', 'loopne': dec + ' && !f.zf'}[mn]
             if self.inside(t):
                 return 'if (%s) %s' % (cond, self.goto(i, t))
             return 'if (%s) { %s }' % (cond, self.target_code(t, True))
@@ -440,15 +446,25 @@ class FuncLifter:
         for o in i.operands:
             if o.type == X.X86_OP_MEM and o.mem.segment and i.reg_name(o.mem.base) in ('esi', 'si'):
                 src_seg = self.SEGS[i.reg_name(o.mem.segment)]
-        S = 'c.sb[%d] + esi' % src_seg
-        D = 'c.sb[0] + edi'
+        if i.addr_size == 2:
+            # address-size prefix (67h): SI/DI address the string and CX counts, all 16 bits wide
+            # (bat256.ASM writes through the 64 KB VESA window this way, the bank number stays in the
+            # upper half of EDI)
+            S, D = 'c.sb[%d] + (uint16_t)esi' % src_seg, 'c.sb[0] + (uint16_t)edi'
+            si = 'esi = (esi & 0xFFFF0000u) | (uint16_t)(esi + %s);' % st
+            di = 'edi = (edi & 0xFFFF0000u) | (uint16_t)(edi + %s);' % st
+            count, dec = '(uint16_t)ecx', 'ecx = (ecx & 0xFFFF0000u) | (uint16_t)(ecx - 1);'
+        else:
+            S, D = 'c.sb[%d] + esi' % src_seg, 'c.sb[0] + edi'
+            si, di = 'esi += %s;' % st, 'edi += %s;' % st
+            count, dec = 'ecx', '--ecx;'
         body = {
-            'lods': set_reg(acc, 'm.r%d(%s)' % (b, S)) + ' esi += %s;' % st,
-            'stos': 'm.w%d(%s, %s); edi += %s;' % (b, D, get_reg(acc), st),
-            'movs': 'm.w%d(%s, m.r%d(%s)); esi += %s; edi += %s;' % (b, D, b, S, st, st),
-            'scas': 'f.sub%d(%s, m.r%d(%s)); edi += %s;' % (b, get_reg(acc), b, D, st),
-            'cmps': 'f.sub%d(m.r%d(%s), m.r%d(%s)); esi += %s; edi += %s;' % (b, b, S, b, D, st, st),
-            'outs': 'host_out(c, (uint16_t)edx, m.r%d(%s), %d); esi += %s;' % (b, S, sz, st),
+            'lods': set_reg(acc, 'm.r%d(%s)' % (b, S)) + ' ' + si,
+            'stos': 'm.w%d(%s, %s); %s' % (b, D, get_reg(acc), di),
+            'movs': 'm.w%d(%s, m.r%d(%s)); %s %s' % (b, D, b, S, si, di),
+            'scas': 'f.sub%d(%s, m.r%d(%s)); %s' % (b, get_reg(acc), b, D, di),
+            'cmps': 'f.sub%d(m.r%d(%s), m.r%d(%s)); %s %s' % (b, b, S, b, D, si, di),
+            'outs': 'host_out(c, (uint16_t)edx, m.r%d(%s), %d); %s' % (b, S, sz, si),
             'insb': None,
         }.get(k)
         if body is None:
@@ -457,8 +473,8 @@ class FuncLifter:
             return body
         if k in ('scas', 'cmps'):
             stop = '!f.zf' if rep in ('repe', 'repz') else 'f.zf'
-            return 'while (ecx) { %s --ecx; if (%s) break; }' % (body, stop)
-        return 'while (ecx) { %s --ecx; }' % body
+            return 'while (%s) { %s %s if (%s) break; }' % (count, body, dec, stop)
+        return 'while (%s) { %s %s }' % (count, body, dec)
 
     # ---- x87
     def fmem(self, i, op, kind):

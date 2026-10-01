@@ -79,6 +79,7 @@ bool Machine::init(std::string *error) {
     o.scale = cfg.scale;
     o.fullscreen = cfg.fullscreen;
     o.smooth = cfg.smooth;
+    o.upscaler = cfg.xbrz ? Upscaler::XBRZ : Upscaler::None;
     o.vsync = cfg.vsync;
     master_volume = cfg.volume;
     display = std::make_unique<Display>();

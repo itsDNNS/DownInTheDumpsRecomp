@@ -68,11 +68,20 @@ else()
   endif()
 endif()
 
+# ---------------------------------------------------------------- xBRZ (upscaling filter, vendored)
+# always optimised: unoptimised it is far too slow for real-time scaling
+add_library(blubxbrz STATIC third_party/xbrz/xbrz.cpp)
+target_include_directories(blubxbrz PUBLIC third_party/xbrz)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_compile_options(blubxbrz PRIVATE -O2 -w)
+endif()
+
 # ---------------------------------------------------------------- engine + host
 file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS src/engine/*.cpp)
 add_library(blubengine STATIC ${ENGINE_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(blubengine PUBLIC src/engine "${BLUB_GENERATED}")
-target_link_libraries(blubengine PUBLIC SDL2::SDL2-static)
+find_package(Threads REQUIRED)
+target_link_libraries(blubengine PUBLIC SDL2::SDL2-static blubxbrz Threads::Threads)
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(blubengine PRIVATE -Wall -Wextra -Wno-unused-parameter)
   # generated code: plenty of labels/variables that are not used in every function; -O1 keeps the

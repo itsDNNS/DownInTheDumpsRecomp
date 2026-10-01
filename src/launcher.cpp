@@ -432,9 +432,23 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                 int idx = std::clamp(s.scale, 1, 4) - 1;
                 ImGui::SetNextItemWidth(260 * scale);
                 if (ImGui::Combo(label(tr("Fenstergröße", "Window size"), "size").c_str(), &idx, sizes, 4)) s.scale = idx + 1;
-                ImGui::Checkbox(tr("Weiche Skalierung", "Smooth scaling"), &s.smooth);
-                help_marker(tr("Aus: scharfe Pixel wie im Original. An: lineare Filterung.",
-                                "Off: sharp pixels like the original. On: linear filtering."));
+                {
+                    const char *modes[] = {tr("Scharfe Pixel (Original)", "Sharp pixels (original)"),
+                                           tr("Weich (linear)", "Smooth (linear)"),
+                                           tr("xBRZ (hohe Qualität)", "xBRZ (high quality)")};
+                    int mode = s.xbrz ? 2 : s.smooth ? 1 : 0;
+                    ImGui::SetNextItemWidth(260 * scale);
+                    if (ImGui::Combo(label(tr("Skalierung", "Scaling"), "scaling").c_str(), &mode, modes, 3)) {
+                        s.smooth = mode == 1;
+                        s.xbrz = mode == 2;
+                    }
+                    help_marker(tr("Scharf: Pixel wie im Original. Weich: lineare Filterung. xBRZ: rechnet Konturen "
+                                   "und Flächen der Zeichnungen glatt auf die Fenstergröße hoch (braucht etwas "
+                                   "mehr Rechenleistung).",
+                                   "Sharp: pixels like the original. Smooth: linear filtering. xBRZ: upscales the "
+                                   "outlines and areas of the drawings smoothly to the window size (needs a bit "
+                                   "more processing power)."));
+                }
                 ImGui::Checkbox(tr("Vertikale Synchronisation (VSync)", "Vertical sync (VSync)"), &s.vsync);
                 ImGui::Checkbox(tr("Seitenumschaltung (flimmerfrei)", "Page flipping (flicker-free)"), &s.dualpage);
                 help_marker(tr("Entspricht der Option /DUALPAGE des Originals: das Spiel zeichnet unsichtbar "
@@ -464,6 +478,7 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                                                                          "Everything in the game: look, click, use objects")},
                                              {tr("Leertaste", "Space bar"), tr("Video / Sequenz überspringen", "Skip video / sequence")},
                                              {"P", "Pause"},
+                                             {"F2", tr("Hotspots zeigen (anklickbare Stellen)", "Show hotspots (clickable areas)")},
                                              {"F11, Alt+Enter", tr("Vollbild ein/aus", "Fullscreen on/off")},
                                              {"Alt+F4", tr("Spiel beenden", "Quit the game")}};
                     for (auto &r : rows) {
@@ -506,7 +521,7 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                 }
                 ImGui::Spacing();
                 ImGui::TextColored(kDim, tr("Einstellungen: %s", "Settings: %s"), settings_path.c_str());
-                ImGui::TextColored(kDim, "SDL %d.%d.%d, Dear ImGui %s", SDL_MAJOR_VERSION, SDL_MINOR_VERSION,
+                ImGui::TextColored(kDim, "SDL %d.%d.%d, Dear ImGui %s, xBRZ 1.9", SDL_MAJOR_VERSION, SDL_MINOR_VERSION,
                                    SDL_PATCHLEVEL, IMGUI_VERSION);
                 ImGui::TextColored(kDim, "%s", tr("Lizenz: GNU GPL v3.0 oder später - ohne Gewährleistung",
                                                   "License: GNU GPL v3.0 or later - without any warranty"));

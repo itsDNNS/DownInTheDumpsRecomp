@@ -77,6 +77,13 @@ void Machine::pump_events() {
                 if (!e.key.repeat) display->toggle_fullscreen();
                 break;
             }
+            if (s == SDL_SCANCODE_F2) {                // hotspots on/off (the game never sees the key)
+                if (!e.key.repeat) {
+                    hotspots = !hotspots;
+                    dirty = true;
+                }
+                break;
+            }
             uint8_t scan = pc_scan(s);
             if (!scan) break;
             g_last_scan = scan;
@@ -152,6 +159,9 @@ void Machine::run_script() {
             std::snprintf(name, sizeof name, "/script_%04d.bmp", shot_no++);
             flush_window();
             save_shot((cfg.shot_dir.empty() ? std::string(".") : cfg.shot_dir) + name);
+        } else if (e.what == "hotspots") {
+            hotspots = !hotspots;
+            dirty = true;
         } else if (e.what == "quit") {
             quit_requested = true;
         }

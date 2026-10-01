@@ -17,6 +17,9 @@ constexpr uint32_t FILSize1 = 0x564A8u;
 constexpr uint32_t FR_Disp = 0x56512u;
 constexpr uint32_t SzBlockAdpcm = 0x5119Eu;
 constexpr uint32_t decomp = 0x2623Eu;
+constexpr uint32_t FirstButton = 0x51B46u;
+constexpr uint32_t IndMETH = 0x5A580u;
+constexpr uint32_t Mouse = 0x52150u;
 constexpr uint32_t FIL_DecodeFrame = 0x2CB15u;
 
 }  // namespace blub::exesym

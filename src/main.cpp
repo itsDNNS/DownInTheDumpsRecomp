@@ -39,11 +39,14 @@ static void usage() {
         "  --window        start in a window\n"
         "  --scale N       window size: N x 640x480\n"
         "  --smooth        linear filtering when scaling\n"
+        "  --xbrz          xBRZ upscaling (high quality)\n"
+        "  --sharp         sharp pixels like the original (neither of the two)\n"
         "  --nosound       no sound\n"
         "  --volume N      master volume in percent\n"
         "  --singlepage    draw on the visible page like the original default\n"
         "  --trace         log DOS, DPMI and sound calls\n"
         "  --shots DIR     save the screen every --shot-interval seconds (testing)\n"
+        "  --shot-presented  screenshots of the window contents: upscaled, with overlay (testing)\n"
         "  --quit-after S  quit after S seconds (testing)\n"
         "  --script FILE   scripted mouse/keyboard input (testing)\n"
         "  --wav FILE      record the sound (testing)\n"
@@ -70,7 +73,8 @@ static void setup_output() {
 }
 
 static void load_script(blub::Machine &machine, const std::string &path) {
-    // "<seconds> click|rclick|move|press|release x y" / "<seconds> key <bios key hex>" / "<seconds> shot|quit"
+    // "<seconds> click|rclick|move|press|release x y" / "<seconds> key <bios key hex>" /
+    // "<seconds> shot|hotspots|quit"
     std::FILE *f = std::fopen(path.c_str(), "r");
     if (!f) return;
     char line[256];
@@ -114,6 +118,7 @@ static blub::HostConfig host_config(const blub::Settings &s) {
     c.fullscreen = s.fullscreen;
     c.scale = s.scale;
     c.smooth = s.smooth;
+    c.xbrz = s.xbrz;
     c.vsync = s.vsync;
     c.dualpage = s.dualpage;
     c.nosound = !s.sound;
@@ -156,12 +161,15 @@ int main(int argc, char **argv) {
         else if (a == "--window") cfg.fullscreen = false;
         else if (a == "--scale") cfg.scale = std::max(1, std::atoi(next().c_str()));
         else if (a == "--smooth") cfg.smooth = true;
+        else if (a == "--xbrz") cfg.xbrz = true;
+        else if (a == "--sharp") cfg.smooth = cfg.xbrz = false;
         else if (a == "--nosound") cfg.nosound = true;
         else if (a == "--volume") cfg.volume = std::clamp(std::atoi(next().c_str()), 0, 100);
         else if (a == "--singlepage") cfg.dualpage = false;
         else if (a == "--trace") cfg.trace = true;
         else if (a == "--shots") cfg.shot_dir = next();
         else if (a == "--shot-interval") cfg.shot_interval = std::atof(next().c_str());
+        else if (a == "--shot-presented") cfg.shot_presented = true;
         else if (a == "--quit-after") cfg.quit_after = std::atof(next().c_str());
         else if (a == "--script") cfg.script = next();
         else if (a == "--wav") cfg.wav = next();
