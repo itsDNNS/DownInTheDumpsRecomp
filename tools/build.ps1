@@ -34,6 +34,17 @@ $parts = @(
 
 function Step($text) { Write-Host ""; Write-Host "== $text" -ForegroundColor Cyan }
 
+# SHA-256 of a file (.NET directly: works in every PowerShell, whatever modules it finds)
+function Sha256($file) {
+    $stream = [IO.File]::OpenRead($file)
+    try {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        return ([BitConverter]::ToString($sha.ComputeHash($stream)) -replace "-", "").ToLowerInvariant()
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 # unpacks a zip archive (tar.exe of Windows 10/11 is much faster than Expand-Archive)
 function Unpack($zip, $dest) {
     New-Item -ItemType Directory -Force $dest | Out-Null
@@ -55,11 +66,11 @@ function Fetch($part) {
     if (Test-Path (Join-Path $dest ".done")) { return $dest }
     New-Item -ItemType Directory -Force $cache | Out-Null
     $file = Join-Path $cache ([IO.Path]::GetFileName($part.Url))
-    if (-not (Test-Path $file) -or (Get-FileHash $file -Algorithm SHA256).Hash -ne $part.Sha256) {
+    if (-not (Test-Path $file) -or (Sha256 $file) -ne $part.Sha256) {
         Write-Host "downloading $($part.Url)"
         Invoke-WebRequest -Uri $part.Url -OutFile $file -UseBasicParsing
     }
-    $hash = (Get-FileHash $file -Algorithm SHA256).Hash
+    $hash = (Sha256 $file)
     if ($hash -ne $part.Sha256) {
         Remove-Item $file
         throw "$([IO.Path]::GetFileName($file)): wrong SHA-256 $hash (expected $($part.Sha256))"

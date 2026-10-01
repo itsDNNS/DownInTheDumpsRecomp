@@ -175,16 +175,17 @@ int64_t Machine::dos_read(int h, uint32_t buf, uint32_t n) {
         m.w32(errno_addr, EBADF_);
         return -1;
     }
-    if (uint64_t(buf & Arena::MASK) + n > Arena::SIZE) n = Arena::SIZE - (buf & Arena::MASK);
+    if (buf >= Arena::SIZE) wild_access(buf, n);
+    n = std::min(n, Arena::SIZE - buf);      // "read up to n bytes" may name more than there is
     DosFile &f = it->second;
     const int64_t got = f.ro ? int64_t(f.ro->read(m.ptr(buf), n)) : int64_t(std::fread(m.ptr(buf), 1, n, f.fp));
-    if (n >= 65536) trace("read %d: %u bytes", h, n);
+    if (n >= 65536 || got < int64_t(n)) trace("read %d: %u bytes -> %lld", h, n, (long long)got);
     return got;
 }
 
 int64_t Machine::dos_write(int h, uint32_t buf, uint32_t n) {
     if (h == 1 || h == 2) {
-        std::fwrite(m.ptr(buf), 1, n, stdout);
+        std::fwrite(m.span(buf, n), 1, n, stdout);
         return n;
     }
     auto it = files.find(h);
@@ -199,7 +200,7 @@ int64_t Machine::dos_write(int h, uint32_t buf, uint32_t n) {
         fs::resize_file(fs::u8path(it->second.host_path), uintmax_t(pos), ec);
         return 0;
     }
-    return int64_t(std::fwrite(m.ptr(buf), 1, n, it->second.fp));
+    return int64_t(std::fwrite(m.span(buf, n), 1, n, it->second.fp));
 }
 
 int64_t Machine::dos_seek(int h, int64_t off, int whence) {

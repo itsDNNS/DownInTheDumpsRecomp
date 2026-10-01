@@ -124,12 +124,14 @@ void Machine::pump_events() {
         case SDL_MOUSEMOTION:
             mouse_x = e.motion.x * mouse_scale;
             mouse_y = e.motion.y * mouse_scale;
+            trace("input: mouse %d,%d", e.motion.x, e.motion.y);
             break;
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP: {
             int bit = e.button.button == SDL_BUTTON_LEFT ? 1 : e.button.button == SDL_BUTTON_RIGHT ? 2 :
                       e.button.button == SDL_BUTTON_MIDDLE ? 4 : 0;
             if (e.type == SDL_MOUSEBUTTONDOWN) mouse_buttons |= bit; else mouse_buttons &= ~bit;
+            trace("input: mouse button %d %s at %d,%d", e.button.button, e.type == SDL_MOUSEBUTTONDOWN ? "down" : "up", e.button.x, e.button.y);
             mouse_x = e.button.x * mouse_scale;
             mouse_y = e.button.y * mouse_scale;
             break;
@@ -177,6 +179,8 @@ void Machine::run_script() {
         } else if (e.what == "hotspots") {
             hotspots = !hotspots;
             dirty = true;
+        } else if (e.what == "hotspot_list") {
+            print_hotspots();
         } else if (e.what == "padattach") {          // a virtual game controller, then its axes and buttons
             static SDL_Joystick *pad = nullptr;
             if (!pad) {

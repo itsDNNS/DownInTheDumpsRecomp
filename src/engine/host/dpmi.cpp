@@ -155,7 +155,8 @@ void Machine::int31(Cpu &r) {
             heap_brk = (heap_brk + size + 0xFFF) & ~0xFFFu;
             if (ax == 0x0503 && blocks.count(handle)) {
                 Block old = blocks[handle];
-                std::memmove(m.ptr(addr), m.ptr(old.addr), std::min(old.size, size));
+                const uint32_t n = std::min(old.size, size);
+                std::memmove(m.span(addr, n), m.span(old.addr, n), n);
                 blocks.erase(handle);
             }
             handle = next_handle++;

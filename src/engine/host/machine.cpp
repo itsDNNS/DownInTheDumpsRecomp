@@ -109,7 +109,7 @@ bool Machine::init(std::string *error) {
     SDL_ShowCursor(SDL_DISABLE);      // the game draws its own mouse pointer
     vram.assign(0x200000, 0);
     // a replay runs much faster than real time: its sound is mixed (the game depends on it), not played
-    if (!cfg.nosound && cfg.replay.empty() && !audio_init()) std::fprintf(stderr, "sound disabled: %s\n", SDL_GetError());
+    if (!cfg.nosound && cfg.replay.empty() && !cfg.explore && !audio_init()) std::fprintf(stderr, "sound disabled: %s\n", SDL_GetError());
 
     // flat selectors of DOS/4GW
     selectors[SEL_CODE] = 0;
@@ -253,6 +253,7 @@ void Machine::poll() {
         last_events = t;
         pump_events();
         run_script();
+        if (cfg.explore) explore_step();
         record_input();                      // recordings: what changed in this round
         if (cfg.quit_after > 0 && t > cfg.quit_after) quit_requested = true;
         check_quit();
@@ -287,7 +288,21 @@ void Cpu::divide_error() {
     throw GuestExit{3};
 }
 
+// Garbage addresses, for example from a frame table read beyond its end, pointed into unmapped memory
+// on DOS (a page fault); wrapped around into the 64 MB they would overwrite the game's own data.
+void wild_access(uint32_t addr, size_t size) {
+    fatal_error("memory access outside the game's memory (%u bytes at %08X)", unsigned(size), addr);
+    throw GuestExit{5};
+}
+
+// The called code returned to another address than the one behind the call. The game does that on
+// purpose: "push label / jmp routine", whose ret then goes to the label (TokenSay and TokenSaySprit
+// with subtitles, DebugAct). Like the CPU, continue at the address returned to, until a return
+// reaches the code behind the call.
 void Cpu::bad_return(uint32_t call_site, uint32_t expected) {
+    for (int n = 0; g_machine && n < 64 && last_ret != expected; n++)
+        if (!dispatch_address(*this, g_machine->m, last_ret)) break;
+    if (last_ret == expected) return;
     static int reported = 0;
     if (reported++ < 20)
         std::fprintf(stderr, "warning: call at %05X (%s) returned to %05X instead of %05X\n", call_site,
@@ -317,6 +332,7 @@ void host_hook(Cpu &c, Arena &m, uint32_t addr) {
     Machine &mc = machine();
     switch (addr) {
     case hle::k_WaitTimer: mc.idle_wait(); break;
+    case hle::k_SubTitle: mc.title_shown = mc.now(); break;
     case hle::k_hook_PlayFIL_WaitSound: {
         // loop "dec eax / cmp wSOSSamplePending, 1": wait for the sound callback in real time,
         // with a time-based instead of the original iteration-based timeout

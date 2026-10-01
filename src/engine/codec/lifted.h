@@ -9,18 +9,24 @@
 
 namespace blub {
 
+// A read or write outside the address space is a bug of the game, which on DOS ends with a page
+// fault. The host layer reports it as a fatal error (host/machine.cpp).
+[[noreturn]] void wild_access(uint32_t addr, size_t size);
+
 class Arena {
 public:
     static constexpr uint32_t SIZE = 0x04000000;       // 64 MB
-    static constexpr uint32_t MASK = SIZE - 1;
     static constexpr uint32_t STACK_TOP = 0x00F00000;
     static constexpr uint32_t HEAP_BASE = 0x01000000;
 
     Arena() : mem_(SIZE + 4, 0) {}
-    uint8_t *ptr(uint32_t a) { return &mem_[a & MASK]; }
-    const uint8_t *ptr(uint32_t a) const { return &mem_[a & MASK]; }
-    void write(uint32_t a, const void *src, size_t n) { std::memcpy(ptr(a), src, n); }
-    void read(uint32_t a, void *dst, size_t n) const { std::memcpy(dst, ptr(a), n); }
+    uint8_t *ptr(uint32_t a) { check(a); return &mem_[a]; }
+    const uint8_t *ptr(uint32_t a) const { check(a); return &mem_[a]; }
+    // n bytes from a, all of them inside the address space
+    uint8_t *span(uint32_t a, size_t n) { check(a, n); return &mem_[a]; }
+    const uint8_t *span(uint32_t a, size_t n) const { check(a, n); return &mem_[a]; }
+    void write(uint32_t a, const void *src, size_t n) { std::memcpy(span(a, n), src, n); }
+    void read(uint32_t a, void *dst, size_t n) const { std::memcpy(dst, span(a, n), n); }
     uint32_t alloc(uint32_t n) {
         uint32_t a = brk_;
         brk_ = (brk_ + n + 0xFFF) & ~0xFFFu;
@@ -30,14 +36,21 @@ public:
     uint32_t brk() const { return brk_; }
 
     // little-endian host assumed (x86/ARM); the 4 guard bytes make unaligned reads at the end safe
-    uint8_t r8(uint32_t a) const { return mem_[a & MASK]; }
-    uint16_t r16(uint32_t a) const { uint16_t v; std::memcpy(&v, &mem_[a & MASK], 2); return v; }
-    uint32_t r32(uint32_t a) const { uint32_t v; std::memcpy(&v, &mem_[a & MASK], 4); return v; }
-    void w8(uint32_t a, uint32_t v) { mem_[a & MASK] = uint8_t(v); }
-    void w16(uint32_t a, uint32_t v) { uint16_t x = uint16_t(v); std::memcpy(&mem_[a & MASK], &x, 2); }
-    void w32(uint32_t a, uint32_t v) { std::memcpy(&mem_[a & MASK], &v, 4); }
+    uint8_t r8(uint32_t a) const { check(a); return mem_[a]; }
+    uint16_t r16(uint32_t a) const { check(a); uint16_t v; std::memcpy(&v, &mem_[a], 2); return v; }
+    uint32_t r32(uint32_t a) const { check(a); uint32_t v; std::memcpy(&v, &mem_[a], 4); return v; }
+    void w8(uint32_t a, uint32_t v) { check(a); mem_[a] = uint8_t(v); }
+    void w16(uint32_t a, uint32_t v) { check(a); uint16_t x = uint16_t(v); std::memcpy(&mem_[a], &x, 2); }
+    void w32(uint32_t a, uint32_t v) { check(a); std::memcpy(&mem_[a], &v, 4); }
 
 private:
+    static void check(uint32_t a) {
+        if (__builtin_expect(a >= SIZE, 0)) wild_access(a, 1);
+    }
+    static void check(uint32_t a, size_t n) {
+        if (__builtin_expect(a > SIZE || n > SIZE - a, 0)) wild_access(a, n);
+    }
+
     std::vector<uint8_t> mem_;
     uint32_t brk_ = HEAP_BASE;
 };

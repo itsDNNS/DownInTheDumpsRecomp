@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 
@@ -56,6 +57,7 @@ static void usage() {
         "  --replay FILE   play a recording back as fast as possible (testing)\n"
         "  --checkpoints FILE  write a hash of the screen every second of game time (testing)\n"
         "  --headless      no window and no sound (testing)\n"
+        "  --explore SEED  the game plays by itself, as fast as possible (testing)\n"
         "  --wav FILE      record the sound (testing)\n"
         "Settings of the launcher: blub.ini in the user data directory.");
 }
@@ -130,19 +132,31 @@ static void save_report(const std::string &report) {
     }
 }
 
-static void load_script(blub::Machine &machine, const std::string &path) {
+static bool load_script(blub::Machine &machine, const std::string &path) {
     // "<seconds> click|rclick|move|press|release x y" / "<seconds> key <bios key hex>" /
     // "<seconds> shot|hotspots|quit" / "<seconds> padattach" / "<seconds> padaxis|padbutton <index> <value>"
-    std::FILE *f = std::fopen(path.c_str(), "r");
-    if (!f) return;
-    char line[256];
-    while (std::fgets(line, sizeof line, f)) {
+    std::ifstream in(fs::u8path(path));
+    if (!in) return false;
+    std::string text;
+    while (std::getline(in, text)) {
+        const char *line = text.c_str();
         double t;
         char what[32] = {}, x[32] = {}, y[32] = {};
         int dualpage, sound;                 // recordings: the options that change the game
         if (std::sscanf(line, "# blub-recording dualpage=%d sound=%d", &dualpage, &sound) == 2) {
             machine.cfg.dualpage = dualpage != 0;
             machine.cfg.nosound = sound == 0;
+            if (const char *a = std::strstr(line, " args=")) {          // the program DID.EXE ran
+                std::string rest(a + 6);
+                while (!rest.empty() && (rest.back() == '\n' || rest.back() == '\r')) rest.pop_back();
+                machine.cfg.args.clear();
+                for (size_t from = 0; from < rest.size();) {
+                    size_t to = rest.find(' ', from);
+                    if (to == std::string::npos) to = rest.size();
+                    if (to > from) machine.cfg.args.push_back(rest.substr(from, to - from));
+                    from = to + 1;
+                }
+            }
             continue;
         }
         if (line[0] == '#' || std::sscanf(line, "%lf %31s %31s %31s", &t, what, x, y) < 2) continue;
@@ -151,7 +165,7 @@ static void load_script(blub::Machine &machine, const std::string &path) {
         e.b = std::atoi(y);
         machine.script.push_back(e);
     }
-    std::fclose(f);
+    return true;
 }
 
 // what the launcher shows after a game: a message (empty: normal end) and an error report
@@ -168,7 +182,8 @@ static PlayResult play(blub::HostConfig cfg, const std::string &game, bool setup
     if (cfg.args.empty()) cfg.args.push_back(setup ? "SETUP\\SETUP.EXP" : "ITOON\\ITOON.EXP");
     try {
         blub::Machine machine(cfg);
-        if (!cfg.script.empty()) load_script(machine, cfg.script);
+        if (!cfg.script.empty() && !load_script(machine, cfg.script))
+            return {blub::tr("Datei nicht lesbar: ", "Cannot read ") + cfg.script, ""};
         std::string err;
         if (!machine.init(&err)) return {blub::tr("Start fehlgeschlagen: ", "Could not start: ") + err, ""};
         std::printf("save directory: %s\n", cfg.save_dir.c_str());
@@ -262,12 +277,13 @@ int main(int argc, char **argv) {
         else if (a == "--replay") cfg.script = cfg.replay = next();
         else if (a == "--checkpoints") cfg.checkpoints = next();
         else if (a == "--headless") cfg.headless = true;
+        else if (a == "--explore") cfg.explore = uint32_t(std::max(1L, std::strtol(next().c_str(), nullptr, 10)));
         else if (a == "--") { while (++i < argc) cfg.args.push_back(argv[i]); }
         else { usage(); return a == "--help" || a == "-h" ? 0 : 2; }
     }
 
     // recordings start with empty saved games (and no DID.CFG), so that a replay starts the same way
-    if ((!cfg.record.empty() || !cfg.replay.empty()) && !save_given) {
+    if ((!cfg.record.empty() || !cfg.replay.empty() || cfg.explore) && !save_given) {
         cfg.save_dir = pref_dir() + "test-save";
         std::error_code ec;
         fs::remove_all(fs::u8path(cfg.save_dir), ec);

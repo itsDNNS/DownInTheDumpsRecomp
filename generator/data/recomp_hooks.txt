@@ -6,3 +6,6 @@ WaitTimer
 # PlayFIL waits for the audio callback in a loop with a timeout of 40 million iterations, calibrated
 # for 1996 CPUs; the host waits in real time instead.
 0x2CA87 PlayFIL_WaitSound
+# SubTitle: the automatic exploration (host/explore.cpp) notices the hint texts of the game, e.g.
+# the one it shows while an object is held over a hotspot it can be used on.
+SubTitle

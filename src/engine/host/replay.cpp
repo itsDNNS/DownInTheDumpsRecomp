@@ -28,10 +28,15 @@ bool Machine::start_recordings(std::string *error) {
             return false;
         }
         std::fprintf(rec, "# blub recording (blub %s) - replay with: blub --replay <this file>\n", cfg.version.c_str());
-        std::fprintf(rec, "# blub-recording dualpage=%d sound=%d\n", cfg.dualpage ? 1 : 0, cfg.nosound ? 0 : 1);
+        std::string args;
+        for (const std::string &a : cfg.args) args += (args.empty() ? "" : " ") + a;
+        std::fprintf(rec, "# blub-recording dualpage=%d sound=%d args=%s\n", cfg.dualpage ? 1 : 0, cfg.nosound ? 0 : 1,
+                     args.c_str());
         clock = Clock::Record;
     }
-    if (!cfg.replay.empty()) clock = Clock::Replay;
+    // replays and the automatic exploration run as fast as possible (and take no input of the player)
+    if (!cfg.replay.empty() || cfg.explore) clock = Clock::Replay;
+    if (cfg.explore) explore_rng = cfg.explore;
     if (!cfg.checkpoints.empty()) {
         checks = std::fopen(cfg.checkpoints.c_str(), "wb");
         if (!checks) {

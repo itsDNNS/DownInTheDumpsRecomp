@@ -77,11 +77,13 @@ bool Machine::crt_call(uint32_t addr) {
     case hle::k__dos_setdrive: if (a1) m.w32(a1, 26); ret = 0; break;
     case hle::k__dos_findfirst: ret = uint32_t(dos_findfirst(gstr(a0), a2)); break;
     case hle::k__dos_findnext: ret = uint32_t(dos_findnext(a0)); break;
-    case hle::k__getdiskfree:                  // (drive, diskfree_t *): plenty of space
-        m.w32(a1 + 0, 65535);
-        m.w32(a1 + 4, 32768);
-        m.w32(a1 + 8, 64);
-        m.w32(a1 + 12, 512);
+    case hle::k__getdiskfree:                  // (drive, struct _diskfree_t *): plenty of space (1 GB)
+        // four unsigned shorts in this Watcom version: GetDiskSpace reads words at offsets 0..6
+        // (with 32-bit fields the game saw no free space and offered no saving at all)
+        m.w16(a1 + 0, 65535);                  // total clusters
+        m.w16(a1 + 2, 32768);                  // available clusters
+        m.w16(a1 + 4, 64);                     // sectors per cluster
+        m.w16(a1 + 6, 512);                    // bytes per sector
         ret = 0;
         break;
     case hle::k___get_errno_ptr: ret = errno_addr; break;
@@ -162,8 +164,8 @@ bool Machine::crt_call(uint32_t addr) {
         ret = uint32_t(d);
         break;
     }
-    case hle::k_memset: std::memset(m.ptr(a0), int(a1 & 0xFF), a2); ret = a0; break;
-    case hle::k_memcpy: case hle::k_memmove: std::memmove(m.ptr(a0), m.ptr(a1), a2); ret = a0; break;
+    case hle::k_memset: std::memset(m.span(a0, a2), int(a1 & 0xFF), a2); ret = a0; break;
+    case hle::k_memcpy: case hle::k_memmove: std::memmove(m.span(a0, a2), m.span(a1, a2), a2); ret = a0; break;
 
     // ---- numbers
     case hle::k_abs: ret = uint32_t(std::abs(int32_t(a0))); break;

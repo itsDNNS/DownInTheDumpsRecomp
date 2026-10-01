@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <deque>
 #include <map>
+#include <set>
 #include <memory>
 #include <string>
 #include <vector>
@@ -59,6 +60,7 @@ struct HostConfig {
     std::string replay;                   // play back a recording as fast as possible
     std::string checkpoints;              // replay: write a hash of the screen every second of game time
     bool headless = false;                // no window, no sound device (replays)
+    uint32_t explore = 0;                 // play by itself with this seed (host/explore.cpp)
     std::string version;                  // of blub, for the header of recordings
 };
 
@@ -114,6 +116,26 @@ public:
     void checkpoint();
     bool start_recordings(std::string *error);
     void stop_recordings();
+
+    // --- automatic exploration (host/explore.cpp)
+    struct ExploreAction { double t; int kind, x, y; };
+    std::deque<ExploreAction> explore_queue;
+    uint32_t explore_rng = 1;
+    double title_shown = -1;                 // the game showed a text (hint: SubTitle)
+    double probe_from = 0;
+    int probe_tries = 0;
+    double explore_next = 0, explore_quiet = -1;
+    double explore_save_at = 300, explore_load_at = -1;   // the first save after 5 minutes
+    double explore_slot_click = 0;
+    int explore_slot_tries = 0;
+    std::map<int, std::set<int64_t>> explored;   // per scene: pointer and hotspot of the clicks
+    void explore_step();
+    bool explore_choose(bool bar, std::pair<int, int> &out);
+    void explore_at(double t, int kind, int x = 0, int y = 0);
+    void explore_click(int x, int y, double t);
+    void explore_save(double t);
+    void explore_load(double t);
+    uint32_t explore_random(uint32_t n);
 
     // --- error reports: the error that stopped the game, and what it did last (files it opened)
     std::string fatal;
@@ -195,6 +217,7 @@ public:
     void gamepad_event(const SDL_Event &e);
     void gamepad_move();
     void hotspot_targets(std::vector<std::pair<int, int>> &out);   // host/hotspots.cpp
+    void print_hotspots();
     void jump_to_hotspot(int dir);
     std::map<int32_t, SDL_GameController *> pads;
     double pad_x = 0, pad_y = 0, pad_time = -1;   // pointer in screen pixels (with fractions)

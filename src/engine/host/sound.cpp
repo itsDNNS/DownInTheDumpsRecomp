@@ -46,7 +46,7 @@ void dump_buffer(Arena &m, uint32_t s) {
     if (!f) return;
     uint32_t hdr[2] = {m.r32(s + wID), m.r32(s + wLength)};
     std::fwrite(hdr, 4, 2, f);
-    std::fwrite(m.ptr(m.r32(s + pSample)), 1, hdr[1], f);
+    std::fwrite(m.span(m.r32(s + pSample), hdr[1]), 1, hdr[1], f);
     std::fflush(f);
 }
 
@@ -274,7 +274,7 @@ bool Machine::sos_call(uint32_t addr) {
         for (uint32_t h = 0; h < SLOTS; h++) {
             const uint32_t s = slot(h);
             if (m.r32(s + wFlags) & ACTIVE) continue;
-            std::memmove(m.ptr(s), m.ptr(r.edx), SLOT_SIZE);
+            std::memmove(m.span(s, SLOT_SIZE), m.span(r.edx, SLOT_SIZE), SLOT_SIZE);
             m.w32(s + pSampleCurrent, m.r32(s + pSample));
             m.w32(s + hSample, h);
             m.w32(s + wFlags, (m.r32(s + wFlags) & ~(FINISHED | DONE)) | ACTIVE);

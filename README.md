@@ -156,7 +156,10 @@ tools/       build.ps1 (build.cmd), package.py, replay_tests.py
 Some behaviour of the 1996 program had to be handled explicitly, e.g. wait loops calibrated for
 1996 CPUs (host hooks instead of busy loops), a patch the game applies to its own sound library at
 start-up, and a memory allocation that only works if the first request for 640 KB of DOS memory
-fails – as it always did on real PCs.
+fails – as it always did on real PCs. The game also has a few rare bugs of its own that make it use
+garbage addresses (found by the automatic exploration below, e.g. a scene change while the
+inventory bar holds an object). On DOS that ended with a page fault; blub stops with an error report
+at the first access outside the game's memory instead of letting it overwrite its own data.
 
 Tests (need the German CDs): `cmake --build build --target blub_tests`, then
 `build/blub_tests tests/fixtures <ISO folder>`.
@@ -170,6 +173,15 @@ second of game time. `python tools/replay_tests.py --blub <blub.exe> --game <ISO
 all recordings in `tests/recordings` and compares them with their references (`.chk.txt`; write new
 ones with `--update` after an intended change). The Windows and the Linux build give the same
 checkpoints.
+
+**Automatic exploration.** `blub --explore SEED --record run.rec.txt --headless --quit-after 1800
+-- /DEMO TOON1\CARTOON1.EXP` lets the game play by itself for 30 minutes of game time (in well
+under a minute): whenever the game waits for the player it clicks hotspots of the scene (the ones
+not tried yet first), uses objects of the inventory on them (where the game shows a hint), walks
+around, now and then skips a sequence, and saves the game every 15 minutes and loads it again 2
+minutes later. The same seed gives the same run, and the recording reproduces it exactly – an error
+it runs into can be replayed and debugged. `/DEMO` lets `DID.EXE` start a chapter directly
+(`TOON1`…`TOON4`, `TOON6`). In test scripts, the event `hotspot_list` prints the clickable areas.
 
 ## Legal
 

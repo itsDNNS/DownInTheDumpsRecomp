@@ -17,6 +17,11 @@ code 0x256be
 code 0x25845
 code 0x2f507
 
+# Saving and loading convert the pointers of the game state through a table (0x5777C): besides
+# 0x2F507 it calls 0x2F572, a small routine behind LoadGame that is in no function (only saving
+# reaches it; all other pointers of the data object into the code are covered)
+code 0x2f572
+
 # ANI_FrameGagTrans calls the chunk handlers at their table value + 6 and puts 0x1BEFB into the
 # table for this while it runs: the call lands in FLI_TMC behind its first instruction
 code 0x1bf01

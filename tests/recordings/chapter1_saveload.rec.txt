@@ -1,0 +1,38 @@
+# save/load test, chapter 1 (started with /DEMO): cheese into the inventory, save, cheese on the trap, load
+# blub-recording dualpage=1 sound=1 args=/DEMO TOON1\CARTOON1.EXP
+3 key 3920
+6 key 3920
+9 key 3920
+12 key 3920
+15 key 3920
+18 key 3920
+21 key 3920
+24 key 3920
+32 click 250 280
+34 shot
+35 move 500 450
+36 click 500 450
+37.5 shot
+38 move 320 30
+39.5 click 452 45
+50 shot
+52 click 162 168
+54 shot
+55 key 1454
+55.2 key 1245
+55.4 key 1F53
+55.6 key 1454
+56 key 1C0D
+62 shot
+64 move 500 450
+65 click 160 463
+66.5 click 461 292
+74 shot
+76 move 320 30
+77.5 click 452 15
+88 shot
+89 click 162 168
+96 shot
+98 move 500 450
+99.5 shot
+102 quit

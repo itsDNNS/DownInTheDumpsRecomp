@@ -57,6 +57,8 @@ void Machine::gamepad_event(const SDL_Event &e) {
     case SDL_CONTROLLERBUTTONDOWN:
     case SDL_CONTROLLERBUTTONUP: {
         const bool down = e.type == SDL_CONTROLLERBUTTONDOWN;
+        trace("input: controller button %s %s", SDL_GameControllerGetStringForButton(SDL_GameControllerButton(e.cbutton.button)),
+              down ? "down" : "up");
         switch (e.cbutton.button) {
         case SDL_CONTROLLER_BUTTON_A:
         case SDL_CONTROLLER_BUTTON_TOUCHPAD:

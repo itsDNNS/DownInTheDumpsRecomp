@@ -11,6 +11,7 @@
 // cursor). The nodes live in the program image, the BUTTONs on the heap. This only reads the game's
 // memory.
 #include <algorithm>
+#include <cstdio>
 #include <functional>
 
 #include "data/exe_symbols.h"
@@ -113,6 +114,15 @@ void Machine::hotspot_boxes(std::vector<OverlayBox> &out) {
                     while (r < n && h.bit(r, c) && !h.bit(r, nc)) r++;
                     out.push_back({side ? h.ex(c + 1) - 1 : h.ex(c), h.ey(r0), 1, h.ey(r) - h.ey(r0), line, true});
                 }
+    });
+}
+
+// test scripts (event "hotspot_list"): the buttons that react to the pointer now
+void Machine::print_hotspots() {
+    constexpr uint32_t CURRENT_POV = 0x5214C;    // Variable[0]
+    std::printf("%9.3f hotspots (pointer %04X, scene %d):\n", now(), m.r16(exesym::Mouse), m.r16(CURRENT_POV));
+    walk_hotspots(m, [&](const Hotspot &h) {
+        std::printf("  %3d,%3d %3dx%3d%s%s\n", h.x, h.y, h.w, h.h, h.click ? " click" : " hover", h.n ? " shaped" : "");
     });
 }
 
