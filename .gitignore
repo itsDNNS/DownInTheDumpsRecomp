@@ -1,6 +1,10 @@
 # build output (contains code generated from the game's DID.EXE - never commit or publish it)
 build*/
 generated/
+Down in the Dumps/
+
+# build tools downloaded by tools/build.ps1
+.tools/
 *.exe
 blub
 blub_tests

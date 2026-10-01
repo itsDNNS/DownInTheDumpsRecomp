@@ -1,0 +1,50 @@
+name: Bug report
+description: The game stopped with an error, hangs, or behaves differently than the original
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting! After an error the settings window shows an error report - the
+        button "Report on GitHub..." opens this form and copies the report to the clipboard.
+        Please do **not** attach game files (ISO images, DID.EXE) or builds of the port. A saved
+        game from shortly before the problem helps a lot.
+  - type: input
+    id: version
+    attributes:
+      label: blub version
+      description: Shown in the settings window under "Info".
+      placeholder: 1.1.0 (6e1f9fe)
+    validations:
+      required: true
+  - type: input
+    id: error
+    attributes:
+      label: Error message
+      description: The "error:" line of the error report, if the game stopped with an error.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Where in the game (chapter, scene), what you did right before, and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Error report or log
+      description: Paste the error report here. Without an error, attach blub.log (its location is shown under "Info").
+      render: text
+  - type: dropdown
+    id: release
+    attributes:
+      label: Game release
+      options:
+        - German CDs
+        - English CDs
+        - other (please describe above)
+  - type: input
+    id: system
+    attributes:
+      label: System
+      placeholder: Windows 11 / Steam Deck with Proton 9 / Wine 10

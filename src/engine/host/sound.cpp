@@ -96,7 +96,7 @@ bool Machine::retire(int h) {
 // speech and music streaming) and its waiting loops depend on the samples being consumed in real time,
 // even when the device is slow or stalls (seen with Wine/PulseAudio). The device gets what it can take.
 void Machine::mix_audio() {
-    static double last = -1;
+    double &last = mixed_until;
     const double t = now();
     if (last < 0) last = t - 0.05;                        // start with 50 ms of sound
     if (t - last > 0.25) last = t - 0.25;                 // after a long pause (debugger, loading): no burst

@@ -1,2 +1,5 @@
 # LF line endings in the repository and in checkouts on every platform
 * text=auto eol=lf
+# except the Windows scripts that players start directly
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

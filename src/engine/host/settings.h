@@ -22,6 +22,7 @@ struct Settings {
     int volume = 100;                     // master volume in percent
     // controls
     bool esc_skips = true;                // Esc behaves like the space bar (skip videos)
+    bool gamepad = true;                  // game controllers move the mouse pointer
     // launcher
     bool show_launcher = true;            // open the launcher when blub is started without arguments
     std::string language = "auto";        // launcher language: auto (system language), de, en
@@ -51,5 +52,7 @@ struct GameCheck {
     std::string chapters;                 // e.g. "1 2 3 4 6"
 };
 GameCheck check_game_dir(const std::string &dir);
+class GameData;
+std::string detect_game_language(GameData &g);   // de, en, fr or empty
 
 }  // namespace blub

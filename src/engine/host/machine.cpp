@@ -25,10 +25,12 @@ Machine &machine() { return *g_machine; }
 Machine::Machine(const HostConfig &config) : cfg(config) { g_machine = this; }
 
 Machine::~Machine() {
+    stop_recordings();
     close_wav();
     for (auto &f : files)
         if (f.second.fp) std::fclose(f.second.fp);
     if (audio_dev) SDL_CloseAudioDevice(audio_dev);
+    for (auto &p : pads) SDL_GameControllerClose(p.second);
     display.reset();
     SDL_Quit();
     g_machine = nullptr;
@@ -42,6 +44,18 @@ void Machine::trace(const char *fmt, ...) {
     std::vfprintf(stderr, fmt, ap);
     va_end(ap);
     std::fputc('\n', stderr);
+}
+
+void Machine::note(const char *fmt, ...) {
+    char text[300];
+    va_list ap;
+    va_start(ap, fmt);
+    std::vsnprintf(text, sizeof text, fmt, ap);
+    va_end(ap);
+    char line[340];
+    std::snprintf(line, sizeof line, "%8.1f s  %s", perf_freq_ > 1 ? now() : 0.0, text);
+    recent.emplace_back(line);
+    if (recent.size() > 30) recent.pop_front();
 }
 
 bool Machine::init(std::string *error) {
@@ -68,7 +82,12 @@ bool Machine::init(std::string *error) {
     m.write(exe.code_base, exe.code.data(), exe.code.size());
     m.write(exe.data_base, exe.data.data(), exe.data.size());
 
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_EVENTS) != 0) {
+    if (cfg.headless) {                      // tests: no window on the screen, no sound device
+        SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
+        SDL_setenv("SDL_AUDIODRIVER", "dummy", 1);
+    }
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_EVENTS |
+                 (cfg.gamepad ? SDL_INIT_GAMECONTROLLER : 0)) != 0) {
         if (error) *error = SDL_GetError();
         return false;
     }
@@ -89,7 +108,8 @@ bool Machine::init(std::string *error) {
     }
     SDL_ShowCursor(SDL_DISABLE);      // the game draws its own mouse pointer
     vram.assign(0x200000, 0);
-    if (!cfg.nosound && !audio_init()) std::fprintf(stderr, "sound disabled: %s\n", SDL_GetError());
+    // a replay runs much faster than real time: its sound is mixed (the game depends on it), not played
+    if (!cfg.nosound && cfg.replay.empty() && !audio_init()) std::fprintf(stderr, "sound disabled: %s\n", SDL_GetError());
 
     // flat selectors of DOS/4GW
     selectors[SEL_CODE] = 0;
@@ -103,7 +123,7 @@ bool Machine::init(std::string *error) {
 
     errno_addr = host_alloc(4);
     slots_addr = host_alloc(SLOTS * 0xF0);
-    return true;
+    return start_recordings(error);
 }
 
 uint32_t Machine::host_alloc(uint32_t size) {
@@ -127,8 +147,29 @@ void Machine::put_str(uint32_t a, const std::string &s) {
     m.write(a, s.c_str(), s.size() + 1);
 }
 
-double Machine::now() const {
+double Machine::real_now() const {
     return double(SDL_GetPerformanceCounter()) / double(perf_freq_) - t0_;
+}
+
+double Machine::now() const { return clock == Clock::Real ? real_now() : vclock; }
+
+// a wait of the game: really, or on the virtual clock (when recording, it never runs ahead of the real
+// one: the player plays in real time)
+void Machine::sleep_for(double seconds) {
+    if (clock == Clock::Real) {
+        if (seconds > 0.0005) SDL_Delay(uint32_t(seconds * 1000.0));
+        return;
+    }
+    vclock += std::max(seconds, 1e-5);
+    if (clock == Clock::Record) {
+        const double ahead = vclock - real_now();
+        if (ahead > 0.0005) SDL_Delay(uint32_t(ahead * 1000.0));
+    }
+}
+
+// time the game spends without waiting: running code, polling a clock
+void Machine::tick(double seconds) {
+    if (clock != Clock::Real) vclock += seconds;
 }
 
 int Machine::run() {
@@ -189,12 +230,11 @@ void Machine::idle_wait() {
     double due = now() + 0.002;
     for (auto &ev : timers)
         if (ev.fn && ev.rate > 0) due = std::min(due, ev.next);
-    if (display) {                           // wake up when the next picture may be shown
+    if (display && clock == Clock::Real) {   // wake up when the next picture may be shown
         const double next_picture = last_present + display->frame_interval();
         if (next_picture > now()) due = std::min(due, next_picture);
     }
-    const double wait = due - now();
-    if (wait > 0.0005) SDL_Delay(uint32_t(wait * 1000.0));
+    sleep_for(due - now());
 }
 
 void Machine::check_quit() {
@@ -203,15 +243,17 @@ void Machine::check_quit() {
 
 void Machine::poll() {
     c.budget = POLL_INTERVAL;
+    tick(2e-5);                              // the guest ran a while since the last poll
     if (in_callback) return;
     run_timers();
     mix_audio();
     double t = now();
-    static double last_events = 0;
-    if (t - last_events > 0.005) {
+    if ((checks || clock == Clock::Replay) && t >= next_check) checkpoint();
+    if (last_events < 0 || t - last_events > 0.005) {
         last_events = t;
         pump_events();
         run_script();
+        record_input();                      // recordings: what changed in this round
         if (cfg.quit_after > 0 && t > cfg.quit_after) quit_requested = true;
         check_quit();
     }
@@ -229,8 +271,19 @@ void Cpu::load_seg(int reg, uint16_t selector) {
     sb[reg] = machine().selector_base(selector);
 }
 
+// an error the game cannot continue after: logged and kept for the error report
+static void fatal_error(const char *fmt, ...) {
+    char text[300];
+    va_list ap;
+    va_start(ap, fmt);
+    std::vsnprintf(text, sizeof text, fmt, ap);
+    va_end(ap);
+    std::fprintf(stderr, "fatal: %s\n", text);
+    if (g_machine) g_machine->fatal = text;
+}
+
 void Cpu::divide_error() {
-    std::fprintf(stderr, "divide error\n");
+    fatal_error("division by zero");
     throw GuestExit{3};
 }
 
@@ -242,12 +295,12 @@ void Cpu::bad_return(uint32_t call_site, uint32_t expected) {
 }
 
 void Cpu::bad_target(uint32_t addr) {
-    std::fprintf(stderr, "fatal: jump/call to unknown address %08X\n", addr);
+    fatal_error("jump/call to unknown address %08X", addr);
     throw GuestExit{4};
 }
 
 void Cpu::unsupported(uint32_t addr, const char *why) {
-    std::fprintf(stderr, "fatal: %s (%05X) is not recompiled: %s\n", function_name(addr), addr, why);
+    fatal_error("%s (%05X) is not recompiled: %s", function_name(addr), addr, why);
     throw GuestExit{4};
 }
 
@@ -274,7 +327,7 @@ void host_hook(Cpu &c, Arena &m, uint32_t addr) {
         mc.present_if_due();                 // the video frame is complete
         if (m.r16(0x5AC8A) != 1) break;
         if (mc.now() - started > 1.0) c.eax = 1;     // give up after one second
-        else SDL_Delay(1);
+        else mc.sleep_for(0.001);
         break;
     }
     default: break;
@@ -292,6 +345,7 @@ void host_int(Cpu &c, Arena &m, int vector) {
     case 0x10: mc.int10(c); break;
     case 0x16: mc.int16(c); break;
     case 0x1A: {                            // BIOS tick count (18.2 Hz)
+        mc.tick(1e-5);
         uint32_t ticks = uint32_t(mc.now() * 18.2065);
         c.ecx = (c.ecx & 0xFFFF0000u) | (ticks >> 16);
         c.edx = (c.edx & 0xFFFF0000u) | (ticks & 0xFFFF);

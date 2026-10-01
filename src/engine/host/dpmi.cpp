@@ -40,7 +40,7 @@ void Machine::real_mode_int(int vector, uint32_t rm) {
             const double seconds = double(edx & 0xFFFF) * 2048.0 / 1.2e6, until = now() + seconds;
             while (now() < until) {
                 poll();
-                SDL_Delay(1);
+                sleep_for(0.001);
             }
             break;
         }

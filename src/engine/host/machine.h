@@ -24,6 +24,8 @@
 #include "recomp/runtime.h"
 
 struct SDL_Window;
+union SDL_Event;
+typedef struct _SDL_GameController SDL_GameController;
 
 namespace blub {
 
@@ -43,6 +45,7 @@ struct HostConfig {
     bool vsync = true;
     int volume = 100;                     // master volume in percent
     bool esc_skips = true;                // Esc acts like the space bar (skips videos)
+    bool gamepad = true;                  // game controllers move the mouse pointer
     bool trace = false;                   // log DOS/DPMI/SOS calls
     // testing
     std::string shot_dir;                 // save the screen as BMP every shot_interval seconds
@@ -51,6 +54,12 @@ struct HostConfig {
     double quit_after = 0;                // seconds; 0 = run until the game ends
     std::string wav;                      // record the mixed sound to this WAV file
     std::string script;                   // scripted input: lines "<seconds> click|rclick|move|key <args>"
+    // recordings (host/replay.cpp): the game runs on a virtual clock and is deterministic
+    std::string record;                   // write the input of this session to this file
+    std::string replay;                   // play back a recording as fast as possible
+    std::string checkpoints;              // replay: write a hash of the screen every second of game time
+    bool headless = false;                // no window, no sound device (replays)
+    std::string version;                  // of blub, for the header of recordings
 };
 
 struct GuestExit {
@@ -94,6 +103,22 @@ public:
     void put_str(uint32_t a, const std::string &s);
     uint32_t host_alloc(uint32_t size);                 // permanent allocation in the host area
     void trace(const char *fmt, ...);
+
+    // --- recordings (host/replay.cpp)
+    std::FILE *rec = nullptr;                // Record: the input log
+    int rec_x = -1, rec_y = -1, rec_buttons = 0;
+    void record_input();                     // after pump_events: what changed of mouse and buttons
+    void push_key(uint16_t key);             // into the BIOS key buffer (and the input log)
+    std::FILE *checks = nullptr;             // Replay: screen hashes
+    double next_check = 1, last_real_present = -1;
+    void checkpoint();
+    bool start_recordings(std::string *error);
+    void stop_recordings();
+
+    // --- error reports: the error that stopped the game, and what it did last (files it opened)
+    std::string fatal;
+    std::deque<std::string> recent;
+    void note(const char *fmt, ...);
 
     // --- poll: timers, sound, input, screen (called from BLUB_POLL and from host functions)
     void poll();
@@ -166,6 +191,16 @@ public:
     void int16(Cpu &r);
     void int33(Cpu &r);
     void pump_events();
+    // game controllers (host/gamepad.cpp): they drive the mouse pointer
+    void gamepad_event(const SDL_Event &e);
+    void gamepad_move();
+    void hotspot_targets(std::vector<std::pair<int, int>> &out);   // host/hotspots.cpp
+    void jump_to_hotspot(int dir);
+    std::map<int32_t, SDL_GameController *> pads;
+    double pad_x = 0, pad_y = 0, pad_time = -1;   // pointer in screen pixels (with fractions)
+    int pad_mouse_x = -1, pad_mouse_y = -1;       // mouse_x/y as the controller left them
+    int touch_finger = -1;
+    float touch_x = 0, touch_y = 0;
     std::deque<uint16_t> keys;               // BIOS keys: scan code << 8 | ascii
     int mouse_x = 0, mouse_y = 0;            // in mouse driver coordinates
     int mouse_buttons = 0;
@@ -184,7 +219,17 @@ public:
     struct TimerEvent { uint32_t handle, fn; double rate, next; };
     std::vector<TimerEvent> timers;
     uint32_t next_timer = 1;
-    double now() const;                      // seconds since start
+    double now() const;                      // seconds since start (the virtual clock for recordings)
+    double real_now() const;
+    // Real: the wall clock. Record/Replay: a virtual clock that only advances where the game waits or
+    // polls (sleep_for, tick), so that the same input gives the same game - recorded in real time,
+    // replayed as fast as possible
+    enum class Clock { Real, Record, Replay };
+    Clock clock = Clock::Real;
+    double vclock = 0;
+    void sleep_for(double seconds);
+    void tick(double seconds);
+    double last_events = -1;                 // the last time pump_events ran
     void run_timers();
     bool in_callback = false;
 
@@ -196,6 +241,7 @@ public:
     uint32_t slots_addr = 0;                 // 32 sample slots (0xF0 bytes each) in the host area
     static constexpr int SLOTS = 32;
     std::array<double, SLOTS> slot_pos{};    // fractional read position (in samples)
+    double mixed_until = -1;                 // the mixer's clock
     uint32_t audio_dev = 0;
     int out_rate = 44100;
     int master_volume = 100;

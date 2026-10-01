@@ -99,6 +99,7 @@ bool Settings::load(const std::string &path) {
         else if (k == "sound") sound = to_bool(v);
         else if (k == "volume") volume = std::clamp(std::atoi(v.c_str()), 0, 100);
         else if (k == "esc_skips") esc_skips = to_bool(v);
+        else if (k == "gamepad") gamepad = to_bool(v);
         else if (k == "show_launcher") show_launcher = to_bool(v);
         else if (k == "language") language = v;
     }
@@ -125,6 +126,7 @@ bool Settings::save(const std::string &path) const {
         << "volume = " << volume << "\n"
         << "[controls]\n"
         << "esc_skips = " << b(esc_skips) << "\n"
+        << "gamepad = " << b(gamepad) << "\n"
         << "[launcher]\n"
         << "show_launcher = " << b(show_launcher) << "\n"
         << "language = " << language << "\n";

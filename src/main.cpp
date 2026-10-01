@@ -14,8 +14,10 @@
 #include <stdexcept>
 #include <string>
 
-#include "host/machine.h"
+#include "blub_version.h"
+#include "data/exe_symbols.h"
 #include "data/gamefs.h"
+#include "host/machine.h"
 #include "host/settings.h"
 #include "launcher.h"
 #include "util/i18n.h"
@@ -42,6 +44,7 @@ static void usage() {
         "  --xbrz          xBRZ upscaling (high quality)\n"
         "  --sharp         sharp pixels like the original (neither of the two)\n"
         "  --nosound       no sound\n"
+        "  --nogamepad     game controllers do not move the mouse pointer\n"
         "  --volume N      master volume in percent\n"
         "  --singlepage    draw on the visible page like the original default\n"
         "  --trace         log DOS, DPMI and sound calls\n"
@@ -49,8 +52,21 @@ static void usage() {
         "  --shot-presented  screenshots of the window contents: upscaled, with overlay (testing)\n"
         "  --quit-after S  quit after S seconds (testing)\n"
         "  --script FILE   scripted mouse/keyboard input (testing)\n"
+        "  --record FILE   record the input of this session (testing, starts with empty saved games)\n"
+        "  --replay FILE   play a recording back as fast as possible (testing)\n"
+        "  --checkpoints FILE  write a hash of the screen every second of game time (testing)\n"
+        "  --headless      no window and no sound (testing)\n"
         "  --wav FILE      record the sound (testing)\n"
         "Settings of the launcher: blub.ini in the user data directory.");
+}
+
+static std::string g_log_path;            // where the output goes (empty: the console)
+
+static std::string pref_dir() {
+    char *pref = SDL_GetPrefPath("blub", "Down in the Dumps");
+    const std::string dir = pref ? pref : "";
+    SDL_free(pref);
+    return dir;
 }
 
 // Windows GUI program: write to the console we were started from, otherwise to blub.log
@@ -61,26 +77,74 @@ static void setup_output() {
         std::freopen("CONOUT$", "w", stderr);
         return;
     }
-    char *pref = SDL_GetPrefPath("blub", "Down in the Dumps");
-    if (pref) {
-        std::string log = std::string(pref) + "blub.log";
-        SDL_free(pref);
-        std::freopen(log.c_str(), "w", stdout);
+    const std::string dir = pref_dir();
+    if (!dir.empty()) {
+        g_log_path = dir + "blub.log";
+        std::freopen(g_log_path.c_str(), "w", stdout);
         std::setvbuf(stdout, nullptr, _IONBF, 0);
-        std::freopen(log.c_str(), "a", stderr);
+        std::freopen(g_log_path.c_str(), "a", stderr);
     }
 #endif
 }
 
+// the system for error reports, with the Wine version under Wine/Proton
+static std::string system_name() {
+    std::string s = SDL_GetPlatform();
+#ifdef _WIN32
+    if (HMODULE ntdll = GetModuleHandleA("ntdll.dll")) {
+        using WineVersion = const char *(*)();
+        if (auto wine = reinterpret_cast<WineVersion>(reinterpret_cast<void *>(GetProcAddress(ntdll, "wine_get_version"))))
+            s += std::string(" (Wine ") + wine() + ")";
+    }
+#endif
+    return s;
+}
+
+// for a bug report: what helps to find the error, and nothing personal (no paths)
+static std::string error_report(blub::Machine &machine, const blub::HostConfig &cfg, int code) {
+    std::string r = "Down in the Dumps (blub) - error report\n";
+    r += "blub: " BLUB_VERSION "\n";
+    r += "system: " + system_name() + "\n";
+    const std::string lang = blub::detect_game_language(machine.game);
+    r += std::string("game: DID.EXE ") + blub::exesym::EXE_SHA1 + (lang.empty() ? "" : ", data: " + lang) + "\n";
+    char line[300];
+    std::snprintf(line, sizeof line, "settings: %s %dx, %s, vsync %s, page flipping %s, sound %s\n",
+                  cfg.fullscreen ? "fullscreen" : "window", cfg.scale, cfg.xbrz ? "xBRZ" : cfg.smooth ? "smooth" : "sharp",
+                  cfg.vsync ? "on" : "off", cfg.dualpage ? "on" : "off", cfg.nosound ? "off" : "on");
+    r += line;
+    r += "error: " + (machine.fatal.empty() ? "exit code " + std::to_string(code) : machine.fatal) + "\n";
+    std::snprintf(line, sizeof line, "play time: %.0f s\n", machine.now());
+    r += line;
+    r += "files the game opened last:\n";
+    for (const std::string &l : machine.recent) r += "  " + l + "\n";
+    return r;
+}
+
+// also kept as a file next to the log
+static void save_report(const std::string &report) {
+    const std::string dir = pref_dir();
+    if (dir.empty()) return;
+    if (std::FILE *f = std::fopen((dir + "blub-error.txt").c_str(), "w")) {
+        std::fputs(report.c_str(), f);
+        std::fclose(f);
+    }
+}
+
 static void load_script(blub::Machine &machine, const std::string &path) {
     // "<seconds> click|rclick|move|press|release x y" / "<seconds> key <bios key hex>" /
-    // "<seconds> shot|hotspots|quit"
+    // "<seconds> shot|hotspots|quit" / "<seconds> padattach" / "<seconds> padaxis|padbutton <index> <value>"
     std::FILE *f = std::fopen(path.c_str(), "r");
     if (!f) return;
     char line[256];
     while (std::fgets(line, sizeof line, f)) {
         double t;
         char what[32] = {}, x[32] = {}, y[32] = {};
+        int dualpage, sound;                 // recordings: the options that change the game
+        if (std::sscanf(line, "# blub-recording dualpage=%d sound=%d", &dualpage, &sound) == 2) {
+            machine.cfg.dualpage = dualpage != 0;
+            machine.cfg.nosound = sound == 0;
+            continue;
+        }
         if (line[0] == '#' || std::sscanf(line, "%lf %31s %31s %31s", &t, what, x, y) < 2) continue;
         blub::Machine::ScriptEvent e{t, what};
         e.a = int(std::strtol(x, nullptr, std::strcmp(what, "key") == 0 ? 16 : 10));
@@ -90,8 +154,13 @@ static void load_script(blub::Machine &machine, const std::string &path) {
     std::fclose(f);
 }
 
-// run the game; returns an error message for the launcher (empty: normal end)
-static std::string play(blub::HostConfig cfg, const std::string &game, bool setup) {
+// what the launcher shows after a game: a message (empty: normal end) and an error report
+struct PlayResult {
+    std::string message, report;
+};
+
+// run the game
+static PlayResult play(blub::HostConfig cfg, const std::string &game, bool setup) {
     cfg.game = game;
     while (cfg.save_dir.size() > 1 && (cfg.save_dir.back() == '/' || cfg.save_dir.back() == '\\')) cfg.save_dir.pop_back();
     std::error_code ec;
@@ -101,15 +170,24 @@ static std::string play(blub::HostConfig cfg, const std::string &game, bool setu
         blub::Machine machine(cfg);
         if (!cfg.script.empty()) load_script(machine, cfg.script);
         std::string err;
-        if (!machine.init(&err)) return blub::tr("Start fehlgeschlagen: ", "Could not start: ") + err;
+        if (!machine.init(&err)) return {blub::tr("Start fehlgeschlagen: ", "Could not start: ") + err, ""};
         std::printf("save directory: %s\n", cfg.save_dir.c_str());
         const int code = machine.run();
-        if (code >= 3) return blub::tr("Das Spiel wurde wegen eines Fehlers beendet (Code ", "The game stopped because of an error (code ") +
-                              std::to_string(code) + blub::tr("), siehe blub.log.", "), see blub.log.");
+        if (code >= 3) {
+            PlayResult r{blub::tr("Das Spiel wurde wegen eines Fehlers beendet.", "The game stopped because of an error."),
+                         error_report(machine, cfg, code)};
+            std::fprintf(stderr, "%s", r.report.c_str());
+            save_report(r.report);
+            return r;
+        }
     } catch (const std::exception &e) {
-        return std::string(blub::tr("Fehler: ", "Error: ")) + e.what();
+        PlayResult r{std::string(blub::tr("Fehler: ", "Error: ")) + e.what(), ""};
+        r.report = "Down in the Dumps (blub) - error report\nblub: " BLUB_VERSION "\nsystem: " + system_name() +
+                   "\nerror: " + e.what() + "\n";
+        save_report(r.report);
+        return r;
     }
-    return "";
+    return {};
 }
 
 static blub::HostConfig host_config(const blub::Settings &s) {
@@ -124,11 +202,13 @@ static blub::HostConfig host_config(const blub::Settings &s) {
     c.nosound = !s.sound;
     c.volume = s.volume;
     c.esc_skips = s.esc_skips;
+    c.gamepad = s.gamepad;
     return c;
 }
 
 int main(int argc, char **argv) {
     setup_output();
+    std::printf("blub %s - %s\n", BLUB_VERSION, system_name().c_str());
     const std::string ini = blub::Settings::default_path();
     blub::Settings settings;
     const bool have_ini = settings.load(ini);
@@ -145,7 +225,8 @@ int main(int argc, char **argv) {
     bool launcher = argc == 1 && (settings.show_launcher || !have_ini || !blub::check_game_dir(settings.game_dir).exe);
     blub::HostConfig cfg = host_config(settings);
     std::string game = settings.game_dir;
-    bool setup = false;
+    bool setup = false, save_given = false;
+    cfg.version = BLUB_VERSION;
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
         auto next = [&]() -> std::string { return i + 1 < argc ? argv[++i] : ""; };
@@ -155,7 +236,10 @@ int main(int argc, char **argv) {
             settings.apply_language();
         }
         else if (a == "--game") game = next();
-        else if (a == "--save") cfg.save_dir = next();
+        else if (a == "--save") {
+            cfg.save_dir = next();
+            save_given = true;
+        }
         else if (a == "--setup") setup = true;
         else if (a == "--fullscreen") cfg.fullscreen = true;
         else if (a == "--window") cfg.fullscreen = false;
@@ -164,6 +248,7 @@ int main(int argc, char **argv) {
         else if (a == "--xbrz") cfg.xbrz = true;
         else if (a == "--sharp") cfg.smooth = cfg.xbrz = false;
         else if (a == "--nosound") cfg.nosound = true;
+        else if (a == "--nogamepad") cfg.gamepad = false;
         else if (a == "--volume") cfg.volume = std::clamp(std::atoi(next().c_str()), 0, 100);
         else if (a == "--singlepage") cfg.dualpage = false;
         else if (a == "--trace") cfg.trace = true;
@@ -173,21 +258,34 @@ int main(int argc, char **argv) {
         else if (a == "--quit-after") cfg.quit_after = std::atof(next().c_str());
         else if (a == "--script") cfg.script = next();
         else if (a == "--wav") cfg.wav = next();
+        else if (a == "--record") cfg.record = next();
+        else if (a == "--replay") cfg.script = cfg.replay = next();
+        else if (a == "--checkpoints") cfg.checkpoints = next();
+        else if (a == "--headless") cfg.headless = true;
         else if (a == "--") { while (++i < argc) cfg.args.push_back(argv[i]); }
         else { usage(); return a == "--help" || a == "-h" ? 0 : 2; }
     }
 
+    // recordings start with empty saved games (and no DID.CFG), so that a replay starts the same way
+    if ((!cfg.record.empty() || !cfg.replay.empty()) && !save_given) {
+        cfg.save_dir = pref_dir() + "test-save";
+        std::error_code ec;
+        fs::remove_all(fs::u8path(cfg.save_dir), ec);
+    }
+
     if (!launcher) {
         if (game.empty()) game = ".";
-        std::string err = play(cfg, game, setup);
-        if (!err.empty()) std::fprintf(stderr, "%s\n", err.c_str());
-        return err.empty() ? 0 : 1;
+        const PlayResult r = play(cfg, game, setup);
+        if (!r.message.empty()) std::fprintf(stderr, "%s\n", r.message.c_str());
+        else if (!cfg.replay.empty()) std::printf("replay finished\n");
+        return r.message.empty() ? 0 : 1;
     }
 
     // settings window; after the game it opens again
-    std::string message;
+    blub::LauncherInfo info;
+    info.log_path = g_log_path;
     for (;;) {
-        const blub::LauncherResult r = blub::run_launcher(settings, ini, message);
+        const blub::LauncherResult r = blub::run_launcher(settings, ini, info);
         if (r == blub::LauncherResult::Quit) return 0;
         blub::HostConfig c = host_config(settings);
         c.trace = cfg.trace;                 // test options of the command line
@@ -196,7 +294,9 @@ int main(int argc, char **argv) {
         c.quit_after = cfg.quit_after;
         c.script = cfg.script;
         c.wav = cfg.wav;
-        message = play(c, settings.game_dir, r == blub::LauncherResult::Setup);
+        const PlayResult result = play(c, settings.game_dir, r == blub::LauncherResult::Setup);
+        info.message = result.message;
+        info.report = result.report;
         std::fflush(stdout);
     }
 }

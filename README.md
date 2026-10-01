@@ -31,6 +31,10 @@ original engine.
   per second)
 - light on the CPU: pictures are only drawn when something changed, and the pause screen and the
   settings window wait for input instead of keeping a CPU core busy
+- **game controllers** (Xbox, PlayStation, Switch, Steam Deck): the stick moves the pointer, A
+  clicks, LB/RB jump to the previous/next hotspot
+- **error reports**: if the game stops because of an error, the settings window shows a report
+  without personal data and opens a prefilled GitHub bug report
 - portable: settings and saved games stay in the program folder
 - runs on Windows 10/11; on Linux and the Steam Deck with Proton or Wine
 - timing issues of the original fixed properly (video/sound synchronisation on fast CPUs, CD speed test)
@@ -50,7 +54,14 @@ work. A complete playthrough of all chapters has not been done yet – bug repor
 
 ## Building
 
-Requirements (Windows):
+**The easy way (Windows):** download this repository (Code → Download ZIP, or `git clone`),
+double-click `build.cmd` and choose the folder with your ISO images. The script downloads the build
+tools once into `.tools` (LLVM-MinGW, CMake, Ninja, Python with capstone: pinned versions, checked
+with SHA-256, about 900 MB; nothing is installed), generates the game code from your `DID.EXE`,
+compiles it and puts the ready-to-play folder `Down in the Dumps` next to the source code. On a
+current PC this takes a few minutes; afterwards build again after every update.
+
+**By hand:** requirements (Windows):
 
 - [LLVM-MinGW](https://github.com/mstorsjo/llvm-mingw) (clang), [CMake](https://cmake.org/) 3.20+,
   [Ninja](https://ninja-build.org/)
@@ -91,6 +102,17 @@ ends you are back in the settings window.
 | F11, Alt+Enter | fullscreen on/off |
 | Alt+F4 | quit |
 
+| Controller | Function |
+|---|---|
+| left stick, d-pad | move the pointer |
+| right stick | move the pointer slowly (aiming) |
+| A | click |
+| B | skip video / cut scene |
+| X | show hotspots on/off |
+| LB / RB | pointer to the previous / next hotspot |
+| Start | pause |
+| Back / Select | like Esc |
+
 Command line: `blub --help` (starts the game directly, e.g. `blub --game <ISO folder> --fullscreen`).
 
 **Windows Smart App Control** blocks unsigned programs like a self-built `blub.exe`. Switch it off
@@ -98,8 +120,16 @@ Command line: `blub --help` (starts the game directly, e.g. `blub --game <ISO fo
 be switched on again later.
 
 **Proton (Steam, Steam Deck):** add `blub.exe` as a non-Steam game and force a Proton version in its
-compatibility settings. On the Steam Deck use a mouse/trackpad layout – the game is played with
-the mouse only. **Wine:** `wine blub.exe`.
+compatibility settings. The controller layout "Gamepad" works (stick and A); the trackpads of the
+Steam Deck can stay a mouse. **Wine:** `wine blub.exe`.
+
+## Reporting bugs
+
+If the game stops because of an error, the settings window shows an error report: the version of
+blub, the system, the error and the last files the game opened – no personal data. **Report on
+GitHub...** copies it to the clipboard and opens the bug report form. Without an error message,
+please attach `blub.log` (its location is shown under Info) and describe where in the game it
+happened; a saved game from shortly before helps a lot.
 
 ## How it works
 
@@ -118,8 +148,9 @@ src/engine/  recomp/       runtime of the generated code: CPU state, flags, x87,
              data/         game data access: ISO 9660 reader, GAP archives, LE executables
              codec/, gfx/  codecs used by the tests, SDL display with the xBRZ upscaler
 src/         main.cpp, launcher.cpp (settings window, Dear ImGui)
-tests/       codec and recompilation tests against reference data made with the original code
-tools/       package.py
+tests/       codec and recompilation tests against reference data made with the original code,
+             recordings/ playthrough tests
+tools/       build.ps1 (build.cmd), package.py, replay_tests.py
 ```
 
 Some behaviour of the 1996 program had to be handled explicitly, e.g. wait loops calibrated for
@@ -129,6 +160,16 @@ fails – as it always did on real PCs.
 
 Tests (need the German CDs): `cmake --build build --target blub_tests`, then
 `build/blub_tests tests/fixtures <ISO folder>`.
+
+**Playthrough tests.** With `--record FILE` (and `--replay FILE`) the game runs on a virtual clock
+that only advances where the game waits or polls, so the same input gives exactly the same game.
+`blub --record mysession.rec.txt` records the input while you play (in real time, starting with
+empty saved games); `blub --replay mysession.rec.txt --checkpoints out.txt --headless` plays it back
+without a window, about 40 times faster than real time, and writes a hash of the screen for every
+second of game time. `python tools/replay_tests.py --blub <blub.exe> --game <ISO folder>` replays
+all recordings in `tests/recordings` and compares them with their references (`.chk.txt`; write new
+ones with `--update` after an intended change). The Windows and the Linux build give the same
+checkpoints.
 
 ## Legal
 

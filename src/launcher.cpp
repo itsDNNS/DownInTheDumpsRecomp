@@ -3,11 +3,14 @@
 #include <SDL.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <vector>
 
+#include "blub_version.h"
 #include "codec/image.h"
 #include "data/gamefs.h"
 #include "data/gap.h"
@@ -218,6 +221,36 @@ void open_folder(const std::string &dir) {
     SDL_OpenURL(url.c_str());
 }
 
+std::string url_encode(const std::string &text) {
+    std::string out;
+    char hex[4];
+    for (unsigned char ch : text) {
+        if (std::isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~') {
+            out += char(ch);
+        } else {
+            std::snprintf(hex, sizeof hex, "%%%02X", ch);
+            out += hex;
+        }
+    }
+    return out;
+}
+
+// the line "<key>: value" of an error report
+std::string report_field(const std::string &report, const std::string &key) {
+    const size_t at = report.find("\n" + key + ": ");
+    if (at == std::string::npos) return "";
+    const size_t from = at + key.size() + 3, to = report.find('\n', from);
+    return report.substr(from, to == std::string::npos ? std::string::npos : to - from);
+}
+
+// new GitHub issue with the bug report form, the short facts filled in
+std::string issue_url(const std::string &report) {
+    const std::string error = report_field(report, "error");
+    return "https://github.com/itsDNNS/DownInTheDumpsRecomp/issues/new?template=bug_report.yml&title=" +
+           url_encode("Error: " + error) + "&version=" + url_encode(report_field(report, "blub")) + "&error=" +
+           url_encode(error) + "&system=" + url_encode(report_field(report, "system"));
+}
+
 void help_marker(const char *text) {
     ImGui::SameLine();
     ImGui::TextDisabled("(?)");
@@ -231,7 +264,7 @@ void help_marker(const char *text) {
 
 }  // namespace
 
-LauncherResult run_launcher(Settings &s, const std::string &settings_path, const std::string &message) {
+LauncherResult run_launcher(Settings &s, const std::string &settings_path, const LauncherInfo &info) {
     SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");
     SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
@@ -265,8 +298,11 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
 
     Banner banner;
     GameCheck check = check_game_dir(s.game_dir);
-    std::string status = message;
+    std::string status = info.message;
     bool confirm_reset = false;
+    bool show_report = !info.report.empty(), report_copied = false;
+    std::vector<char> report_text(info.report.begin(), info.report.end());
+    report_text.push_back('\0');
     LauncherResult result = LauncherResult::Quit;
     bool running = true;
     // testing: BLUB_LAUNCHER_SHOT=<file.bmp>[,tab] saves a screenshot after a few frames and quits
@@ -338,10 +374,10 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                 for (auto &d : check.discs) ImGui::TextColored(kDim, "  %s", d.c_str());
                 if (!check.problems.empty()) ImGui::TextColored(kYellow, tr("Nicht verwendbar: %s", "Not usable: %s"), check.problems.c_str());
                 if (s.game_dir.empty()) {
-                    ImGui::TextColored(kYellow, tr("Bitte den Ordner mit den ISO-Dateien der drei Original-CDs wählen.",
+                    ImGui::TextColored(kYellow, "%s", tr("Bitte den Ordner mit den ISO-Dateien der drei Original-CDs wählen.",
                                                    "Please choose the folder with the ISO images of the three original CDs."));
                 } else if (!check.exe) {
-                    ImGui::TextColored(kRed, check.discs.empty() ? tr("In diesem Ordner liegen keine ISOs und keine Spieldateien.",
+                    ImGui::TextColored(kRed, "%s", check.discs.empty() ? tr("In diesem Ordner liegen keine ISOs und keine Spieldateien.",
                                                                     "This folder contains no ISO images and no game files.")
                                                                  : tr("CD 1 fehlt (sie enthält DID.EXE).",
                                                                       "CD 1 is missing (it contains DID.EXE)."));
@@ -351,10 +387,10 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                                        : check.language == "fr" ? tr("französisch", "French")
                                                                 : tr("unbekannt", "unknown");
                     if (check.original) {
-                        ImGui::TextColored(kGreen, tr("DID.EXE erkannt: Originalprogramm von 1996",
+                        ImGui::TextColored(kGreen, "%s", tr("DID.EXE erkannt: Originalprogramm von 1996",
                                                       "DID.EXE recognized: original 1996 program"));
                     } else {
-                        ImGui::TextColored(kRed, tr("Diese DID.EXE ist eine andere Programmversion und wird noch "
+                        ImGui::TextColored(kRed, "%s", tr("Diese DID.EXE ist eine andere Programmversion und wird noch "
                                                     "nicht unterstützt.",
                                                     "This DID.EXE is a different program version and is not "
                                                     "supported yet."));
@@ -368,7 +404,7 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                     ImGui::TextColored(check.language.empty() ? kYellow : kGreen, tr("Sprache der Spieldaten: %s",
                                                                                    "Language of the game data: %s"),
                                        lang);
-                    ImGui::TextColored(check.itoon ? kGreen : kRed, check.itoon ? tr("Hauptmenü (ITOON) vorhanden", "Main menu (ITOON) present")
+                    ImGui::TextColored(check.itoon ? kGreen : kRed, "%s", check.itoon ? tr("Hauptmenü (ITOON) vorhanden", "Main menu (ITOON) present")
                                                                                 : tr("ITOON fehlt - das Spiel kann nicht starten",
                                                                                      "ITOON is missing - the game cannot start"));
                     // the chapters are spread over the discs: CD 1 = 3, CD 2 = 1 and 2, CD 3 = 4 and 6
@@ -378,7 +414,7 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                         if (check.chapters.find(n) == std::string::npos)
                             missing += std::string(missing.empty() ? tr(" Kapitel ", " chapter ") : ", ") + n;
                     if (missing.empty())
-                        ImGui::TextColored(kGreen, tr("Alle Kapitel vorhanden - bereit zum Spielen", "All chapters present - ready to play"));
+                        ImGui::TextColored(kGreen, "%s", tr("Alle Kapitel vorhanden - bereit zum Spielen", "All chapters present - ready to play"));
                     else
                         ImGui::TextColored(kYellow, tr("Es fehlt:%s (auf einer der anderen CDs). Das Spiel startet, aber ohne diese Kapitel.",
                                                        "Missing:%s (on one of the other CDs). The game starts, but without them."),
@@ -393,7 +429,7 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                 ImGui::TextColored(kDim, "%s", s.save_dir.empty() ? (tr("Standard: ", "Default: ") + s.effective_save_dir()).c_str()
                                                                   : tr("eigener Ordner", "custom folder"));
                 if (Settings::portable())
-                    ImGui::TextColored(kDim, tr("Portabel: Einstellungen und Spielstände liegen im Programmordner.",
+                    ImGui::TextColored(kDim, "%s", tr("Portabel: Einstellungen und Spielstände liegen im Programmordner.",
                                                 "Portable: settings and saved games are kept in the program folder."));
                 if (ImGui::Button(tr("Ordner öffnen", "Open folder"))) open_folder(s.effective_save_dir());
                 ImGui::SameLine();
@@ -406,7 +442,7 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                                "The game remembers in DID.CFG that the intro has already been shown. Only this "
                                "file is deleted; saved games are kept."));
                 if (confirm_reset) {
-                    ImGui::TextColored(kYellow, tr("DID.CFG löschen?", "Delete DID.CFG?"));
+                    ImGui::TextColored(kYellow, "%s", tr("DID.CFG löschen?", "Delete DID.CFG?"));
                     ImGui::SameLine();
                     if (ImGui::SmallButton(tr("Ja", "Yes"))) {
                         std::error_code ec;
@@ -462,7 +498,7 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                                "Same as the original's /DUALPAGE option: the game draws off-screen and then "
                                "flips the page. Recommended."));
                 ImGui::Spacing();
-                ImGui::TextColored(kDim, tr("Das Bild bleibt immer im Seitenverhältnis 4:3.", "The picture always keeps its 4:3 aspect ratio."));
+                ImGui::TextColored(kDim, "%s", tr("Das Bild bleibt immer im Seitenverhältnis 4:3.", "The picture always keeps its 4:3 aspect ratio."));
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem(label(tr("Ton & Steuerung", "Sound & controls"), "sound").c_str(), nullptr, frame_no < 3 && shot_tab == 2 ? ImGuiTabItemFlags_SetSelected : 0)) {
@@ -476,6 +512,11 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                 ImGui::Separator();
                 ImGui::Spacing();
                 ImGui::Checkbox(tr("Esc überspringt Videos (wie die Leertaste)", "Esc skips videos (like the space bar)"), &s.esc_skips);
+                ImGui::Checkbox(tr("Controller steuert den Mauszeiger", "Controller moves the mouse pointer"), &s.gamepad);
+                help_marker(tr("Gamepads wie Xbox-, PlayStation- oder Switch-Controller und das Steam Deck: der Stick bewegt "
+                               "den Zeiger, A klickt. Die Belegung steht unten.",
+                               "Gamepads such as Xbox, PlayStation or Switch controllers and the Steam Deck: the stick moves "
+                               "the pointer, A clicks. The buttons are listed below."));
                 ImGui::Spacing();
                 if (ImGui::BeginTable("keys", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
                     ImGui::TableSetupColumn(tr("Taste", "Key"), ImGuiTableColumnFlags_WidthFixed, 170 * scale);
@@ -496,10 +537,34 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                     }
                     ImGui::EndTable();
                 }
+                ImGui::Spacing();
+                if (s.gamepad && ImGui::BeginTable("pad", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
+                    ImGui::TableSetupColumn(tr("Controller", "Controller"), ImGuiTableColumnFlags_WidthFixed, 170 * scale);
+                    ImGui::TableSetupColumn(tr("Funktion", "Function"));
+                    ImGui::TableHeadersRow();
+                    const char *rows[][2] = {
+                        {tr("Linker Stick, Steuerkreuz", "Left stick, d-pad"), tr("Zeiger bewegen", "Move the pointer")},
+                        {tr("Rechter Stick", "Right stick"), tr("Zeiger langsam bewegen (zielen)", "Move the pointer slowly (aiming)")},
+                        {"A", tr("Klicken", "Click")},
+                        {"B", tr("Video / Sequenz überspringen", "Skip video / sequence")},
+                        {"X", tr("Hotspots zeigen", "Show hotspots")},
+                        {"LB / RB", tr("Zeiger zum vorigen / nächsten Hotspot", "Pointer to the previous / next hotspot")},
+                        {"Start", "Pause"},
+                        {tr("Zurück / Select", "Back / Select"), tr("wie Esc", "like Esc")}};
+                    for (auto &r : rows) {
+                        ImGui::TableNextRow();
+                        ImGui::TableNextColumn();
+                        ImGui::TextUnformatted(r[0]);
+                        ImGui::TableNextColumn();
+                        ImGui::TextUnformatted(r[1]);
+                    }
+                    ImGui::EndTable();
+                }
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem(label("Info", "info").c_str(), nullptr, frame_no < 3 && shot_tab == 3 ? ImGuiTabItemFlags_SetSelected : 0)) {
                 ImGui::Spacing();
+                ImGui::TextColored(kGreen, "blub %s", BLUB_VERSION);
                 ImGui::TextWrapped("%s", tr("Down in the Dumps (Philips Media / Haiku Studios, 1996) auf modernen Systemen.",
                                              "Down in the Dumps (Philips Media / Haiku Studios, 1996) on modern systems."));
                 ImGui::Spacing();
@@ -527,6 +592,7 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
                 }
                 ImGui::Spacing();
                 ImGui::TextColored(kDim, tr("Einstellungen: %s", "Settings: %s"), settings_path.c_str());
+                if (!info.log_path.empty()) ImGui::TextColored(kDim, tr("Protokoll: %s", "Log: %s"), info.log_path.c_str());
                 ImGui::TextColored(kDim, "SDL %d.%d.%d, Dear ImGui %s, xBRZ 1.9", SDL_MAJOR_VERSION, SDL_MINOR_VERSION,
                                    SDL_PATCHLEVEL, IMGUI_VERSION);
                 ImGui::TextColored(kDim, "%s", tr("Lizenz: GNU GPL v3.0 oder später - ohne Gewährleistung",
@@ -564,6 +630,45 @@ LauncherResult run_launcher(Settings &s, const std::string &settings_path, const
         ImGui::EndDisabled();
         ImGui::SameLine(ImGui::GetWindowWidth() - bw - ImGui::GetStyle().WindowPadding.x);
         if (ImGui::Button(label(tr("Beenden", "Quit"), "quit").c_str(), ImVec2(bw, 0))) running = false;
+
+        // ---- the last game stopped because of an error: show the report and how to send it
+        if (show_report) {
+            ImGui::OpenPopup("###report");
+            show_report = false;
+        }
+        ImGui::SetNextWindowSize(ImVec2(640 * scale, 0), ImGuiCond_Appearing);
+        if (ImGui::BeginPopupModal(label(tr("Fehler im Spiel", "Error in the game"), "report").c_str(), nullptr,
+                                   ImGuiWindowFlags_NoSavedSettings)) {
+            ImGui::TextWrapped("%s", tr("Das Spiel wurde wegen eines Fehlers dieses Ports beendet. Bitte melde ihn: der "
+                                        "Bericht unten hilft, den Fehler zu finden, und enthält keine persönlichen Daten.",
+                                        "The game stopped because of an error in this port. Please report it: the report "
+                                        "below helps to find the error and contains no personal data."));
+            ImGui::Spacing();
+            ImGui::InputTextMultiline("##report_text", report_text.data(), report_text.size(),
+                                      ImVec2(-1, 220 * scale), ImGuiInputTextFlags_ReadOnly);
+            ImGui::Spacing();
+            if (ImGui::Button(tr("Bericht kopieren", "Copy report"))) {
+                SDL_SetClipboardText(info.report.c_str());
+                report_copied = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(tr("Auf GitHub melden...", "Report on GitHub..."))) {
+                SDL_SetClipboardText(info.report.c_str());
+                report_copied = true;
+                SDL_OpenURL(issue_url(info.report).c_str());
+            }
+            if (!info.log_path.empty()) {
+                ImGui::SameLine();
+                if (ImGui::Button(tr("Protokoll-Ordner öffnen", "Open log folder")))
+                    open_folder(fs::u8path(info.log_path).parent_path().u8string());
+            }
+            ImGui::SameLine(ImGui::GetWindowWidth() - 110 * scale);
+            if (ImGui::Button(tr("Schließen", "Close"), ImVec2(100 * scale, 0))) ImGui::CloseCurrentPopup();
+            if (report_copied)
+                ImGui::TextColored(kGreen, "%s", tr("Bericht in die Zwischenablage kopiert - bitte im GitHub-Formular einfügen.",
+                                                    "Report copied to the clipboard - please paste it into the GitHub form."));
+            ImGui::EndPopup();
+        }
         ImGui::End();
 
         ImGui::Render();

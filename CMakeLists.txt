@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(blub LANGUAGES C CXX)
+project(blub VERSION 1.1.0 LANGUAGES C CXX)
 
 # blub: Down in the Dumps (Philips Media / Haiku Studios, 1996) as a native program.
 # The game program DID.EXE is statically recompiled to C++. The repository contains no code or data
@@ -119,8 +119,34 @@ if(WIN32)
   target_link_libraries(blubgui PUBLIC comdlg32 ole32 gdi32)
 endif()
 
+# ---------------------------------------------------------------- version
+# shown in the settings window and in error reports; with the commit when built from a git checkout
+set(BLUB_VERSION_STRING "${PROJECT_VERSION}")
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+  execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${CMAKE_SOURCE_DIR}" rev-parse --short HEAD
+                  OUTPUT_VARIABLE git_commit OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+  execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${CMAKE_SOURCE_DIR}" status --porcelain --untracked-files=no
+                  OUTPUT_VARIABLE git_changes OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+  if(git_commit)
+    string(APPEND BLUB_VERSION_STRING " (${git_commit}")
+    if(git_changes)
+      string(APPEND BLUB_VERSION_STRING ", modified")
+    endif()
+    string(APPEND BLUB_VERSION_STRING ")")
+  endif()
+  foreach(f HEAD logs/HEAD)                  # configure again after a commit or checkout
+    if(EXISTS "${CMAKE_SOURCE_DIR}/.git/${f}")
+      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/${f}")
+    endif()
+  endforeach()
+endif()
+file(CONFIGURE OUTPUT "${CMAKE_BINARY_DIR}/version/blub_version.h"
+     CONTENT "#pragma once\n#define BLUB_VERSION \"@BLUB_VERSION_STRING@\"\n" @ONLY)
+
 # ---------------------------------------------------------------- programs
 add_executable(blub src/main.cpp src/launcher.cpp)
+target_include_directories(blub PRIVATE "${CMAKE_BINARY_DIR}/version")
 target_link_libraries(blub PRIVATE blubengine blubgui SDL2::SDL2main)
 if(WIN32)
   set_target_properties(blub PROPERTIES WIN32_EXECUTABLE ON)   # no console window

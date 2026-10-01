@@ -39,6 +39,13 @@ void Machine::set_bank(uint32_t b) {
 void Machine::present(bool force) {
     last_present = now();
     if (!graphics) return;
+    // a fast replay shows about 30 pictures per second of real time
+    if (clock == Clock::Replay && real_now() - last_real_present < 1.0 / 30 &&
+        (cfg.shot_dir.empty() || now() - last_shot < cfg.shot_interval)) {
+        if (flush_window()) dirty = true;
+        return;
+    }
+    last_real_present = real_now();
     flush_window();
     dirty = false;
     const uint32_t start = std::min<uint32_t>(display_start, uint32_t(vram.size() - SCREEN_W * SCREEN_H));
@@ -176,6 +183,7 @@ void Machine::int10(Cpu &r) {
 uint32_t Machine::port_in(uint16_t port, int size) {
     switch (port) {
     case 0x3DA: {                             // input status: vertical retrace at 70 Hz
+        tick(2e-6);                           // the game polls this in a loop: let the clock run
         double t = now() * 70.0;
         bool retrace = (t - double(uint64_t(t))) < 0.08;
         if (retrace && !last_retrace) {      // the game waits for the retrace: its picture is complete

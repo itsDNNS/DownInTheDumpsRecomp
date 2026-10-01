@@ -145,6 +145,7 @@ int Machine::dos_open(const std::string &path, int mode, bool create, bool trunc
     }
     if (!f.fp && !f.ro) {
         trace("open %s -> failed", path.c_str());
+        note("open %s (failed)", path.c_str());
         m.w32(errno_addr, in_save ? EACCES_ : ENOENT_);
         return -1;
     }
@@ -152,6 +153,7 @@ int Machine::dos_open(const std::string &path, int mode, bool create, bool trunc
     while (files.count(h)) h++;
     trace("open %s (mode %d%s) -> %d %s", path.c_str(), mode, create ? " create" : "", h,
           f.ro ? "(disc)" : f.host_path.c_str());
+    note("open %s%s", path.c_str(), create || truncate ? " (new)" : (mode & 3) ? " (write)" : "");
     files[h] = std::move(f);
     return h;
 }

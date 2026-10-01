@@ -62,12 +62,16 @@ int cp850(const char *utf8) {
 }
 
 uint8_t g_last_scan = 0;
+SDL_Joystick *g_test_pad = nullptr;              // test scripts: virtual game controller
 
 }  // namespace
 
 void Machine::pump_events() {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        if (clock == Clock::Replay && e.type != SDL_QUIT && e.type != SDL_WINDOWEVENT &&
+            !(e.type == SDL_KEYDOWN && e.key.keysym.scancode == SDL_SCANCODE_F2))
+            continue;                         // a replay only gets the input of its recording
         switch (e.type) {
         case SDL_QUIT: quit_requested = true; break;
         case SDL_KEYDOWN: {
@@ -109,12 +113,12 @@ void Machine::pump_events() {
             } else {
                 break;                        // printable: arrives as SDL_TEXTINPUT
             }
-            if (keys.size() < 16) keys.push_back(key);
+            push_key(key);
             break;
         }
         case SDL_TEXTINPUT: {
             int ch = cp850(e.text.text);
-            if (ch > 0 && keys.size() < 16) keys.push_back(uint16_t((g_last_scan << 8) | ch));
+            if (ch > 0) push_key(uint16_t((g_last_scan << 8) | ch));
             break;
         }
         case SDL_MOUSEMOTION:
@@ -133,9 +137,15 @@ void Machine::pump_events() {
         case SDL_WINDOWEVENT:
             dirty = true;                     // shown, exposed, resized: draw the picture again
             break;
+        case SDL_CONTROLLERDEVICEADDED: case SDL_CONTROLLERDEVICEREMOVED:
+        case SDL_CONTROLLERBUTTONDOWN: case SDL_CONTROLLERBUTTONUP:
+        case SDL_CONTROLLERTOUCHPADDOWN: case SDL_CONTROLLERTOUCHPADMOTION: case SDL_CONTROLLERTOUCHPADUP:
+            gamepad_event(e);
+            break;
         default: break;
         }
     }
+    if (clock != Clock::Replay) gamepad_move();
 }
 
 // scripted input for automated tests
@@ -152,8 +162,13 @@ void Machine::run_script() {
             if (e.what == "click" || e.what == "rclick")
                 script.push_front(ScriptEvent{t + 0.15, "release", e.a, e.b});
             if (e.what == "release") mouse_buttons &= ~1 & ~2;
+        } else if (e.what == "buttons") {
+            mouse_buttons = e.a;
+        } else if (e.what == "pos") {                // mouse driver coordinates (recordings)
+            mouse_x = e.a;
+            mouse_y = e.b;
         } else if (e.what == "key") {
-            keys.push_back(uint16_t(e.a));
+            push_key(uint16_t(e.a));
         } else if (e.what == "shot") {
             char name[64];
             std::snprintf(name, sizeof name, "/script_%04d.bmp", shot_no++);
@@ -162,6 +177,18 @@ void Machine::run_script() {
         } else if (e.what == "hotspots") {
             hotspots = !hotspots;
             dirty = true;
+        } else if (e.what == "padattach") {          // a virtual game controller, then its axes and buttons
+            static SDL_Joystick *pad = nullptr;
+            if (!pad) {
+                const int index = SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER, SDL_CONTROLLER_AXIS_MAX,
+                                                            SDL_CONTROLLER_BUTTON_MAX, 0);
+                if (index >= 0) pad = SDL_JoystickOpen(index);
+            }
+            g_test_pad = pad;
+        } else if (e.what == "padaxis") {
+            if (g_test_pad) SDL_JoystickSetVirtualAxis(g_test_pad, e.a, Sint16(e.b));
+        } else if (e.what == "padbutton") {
+            if (g_test_pad) SDL_JoystickSetVirtualButton(g_test_pad, e.a, Uint8(e.b));
         } else if (e.what == "quit") {
             quit_requested = true;
         }
@@ -174,7 +201,7 @@ void Machine::int16(Cpu &r) {
     case 0x00: case 0x10:                    // wait for a key
         while (keys.empty()) {
             poll();
-            SDL_Delay(5);
+            sleep_for(0.005);
         }
         r.eax = (r.eax & 0xFFFF0000u) | keys.front();
         keys.pop_front();
@@ -207,7 +234,7 @@ void Machine::int33(Cpu &r) {
     case 0x0003:
         // the loops that wait for a click (pause screen, message boxes) ask for the mouse without ever
         // waiting for the timer: sleep a little there instead of spinning
-        if (++mouse_polls > 8) SDL_Delay(1);
+        if (++mouse_polls > 8) sleep_for(0.001);
         poll();
         present_if_due();                     // the pointer was drawn since the last request
         lo(r.ebx, uint32_t(mouse_buttons));

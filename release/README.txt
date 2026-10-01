@@ -65,6 +65,23 @@ F2               show hotspots on/off: the clickable areas of the scene
 F11, Alt+Enter   fullscreen on/off
 Alt+F4           quit the game
 
+Game controllers (Xbox, PlayStation, Switch, Steam Deck):
+Left stick, d-pad  move the pointer      Right stick    move it slowly (aiming)
+A                  click                 B              skip video / cut scene
+X                  show hotspots         LB / RB        pointer to the previous /
+Start              pause                                next hotspot
+(can be switched off under "Sound & controls")
+
+
+Problems?
+---------
+
+If the game stops because of an error, the settings window shows an error
+report (version, system, the error - no personal data). "Report on GitHub..."
+copies it to the clipboard and opens the bug report form; please paste it there
+and describe where in the game it happened. Without an error message, attach
+blub.log (its location is shown under "Info").
+
 
 Windows: Smart App Control
 --------------------------
@@ -89,8 +106,8 @@ Steam (including the Steam Deck):
      from this folder.
   2. Right-click the entry > Properties > Compatibility > "Force the use of a
      specific Steam Play compatibility tool" > a current Proton version.
-  3. Start. On the Steam Deck choose a mouse/trackpad controller layout (e.g. the
-     template "Keyboard and Mouse"): the game is played with the mouse only.
+  3. Start. On the Steam Deck the controller layout "Gamepad" works: the left
+     stick moves the pointer, A clicks (the trackpads can stay a mouse).
 
 Wine:
   wine blub.exe      (run it in the folder of this game)

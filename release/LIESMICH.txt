@@ -63,6 +63,24 @@ F2               Hotspots ein/aus: die anklickbaren Stellen der Szene
 F11, Alt+Enter   Vollbild ein/aus
 Alt+F4           Spiel beenden
 
+Controller (Xbox, PlayStation, Switch, Steam Deck):
+Linker Stick,    Zeiger bewegen          Rechter Stick  Zeiger langsam bewegen
+Steuerkreuz                                             (zielen)
+A                klicken                 B              Video / Sequenz überspringen
+X                Hotspots zeigen         LB / RB        Zeiger zum vorigen /
+Start            Pause                                  nächsten Hotspot
+(abschaltbar unter "Ton & Steuerung")
+
+
+Probleme?
+---------
+
+Wird das Spiel wegen eines Fehlers beendet, zeigt das Einstellungsfenster einen
+Fehlerbericht (Version, System, der Fehler - keine persönlichen Daten).
+"Auf GitHub melden..." kopiert ihn in die Zwischenablage und öffnet das
+Fehlerformular; bitte dort einfügen und beschreiben, wo im Spiel es passiert ist.
+Ohne Fehlermeldung bitte blub.log anhängen (wo es liegt, steht unter "Info").
+
 
 Windows: Smart App Control
 --------------------------
@@ -89,8 +107,8 @@ Steam (auch Steam Deck):
   2. Rechtsklick auf den Eintrag > Eigenschaften > Kompatibilität >
      "Die Verwendung eines bestimmten Steam Play-Kompatibilitätstools erzwingen" >
      eine aktuelle Proton-Version.
-  3. Starten. Auf dem Steam Deck den Controller-Modus "Maus/Trackpad" wählen
-     (z. B. die Vorlage "Tastatur und Maus"): das Spiel wird nur mit der Maus gespielt.
+  3. Starten. Auf dem Steam Deck funktioniert die Controller-Vorlage "Gamepad":
+     der linke Stick bewegt den Zeiger, A klickt (die Trackpads bleiben eine Maus).
 
 Wine:
   wine blub.exe      (im Ordner dieses Spiels ausführen)
