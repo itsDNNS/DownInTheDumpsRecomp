@@ -83,8 +83,8 @@ void Machine::explore_click(int x, int y, double t) {
 // (sprite 2, the open hand) the clicks never get above y 30, where LOAD is. TOP_CLICK clicks only if
 // the game's click point is on the button, else the rest of the save or load is dropped.
 //
-// The name is typed only after the game asked for it (the SubTitle that the click on the slot
-// shows): its text input (Gets) hides the pointer and waits for Enter, nothing else.
+// The name is typed only into the game's text input (Gets), which the click on the slot starts:
+// it hides the pointer and waits for Enter, nothing else.
 void Machine::explore_save(double t) {
     std::printf("explore %7.1f s: save the game\n", t);
     explore_at(t, MOVE, 320, 30);
@@ -129,7 +129,7 @@ void Machine::explore_step() {
             explore_at(t + 2, SAVE_NAME);
             break;
         case SAVE_NAME:
-            if (title_shown >= explore_slot_click) {
+            if (text_input_at >= explore_slot_click) {
                 const uint16_t name[] = {0x1454, 0x1245, 0x1F53, 0x1454, 0x1C0D};   // T E S T, Enter
                 for (int i = 0; i < 5; i++) explore_at(t + 0.2 * i, KEY, name[i]);
                 explore_next = t + 10;
@@ -205,6 +205,14 @@ void Machine::explore_step() {
         }
     }
     if (!explore_queue.empty()) return;
+    // the game's text input (Gets, no frames meanwhile) waits for Enter: started by a click of the
+    // exploration on a saved game, it would wait forever
+    if (text_input_at > frame_wait_at && t - text_input_at > 20) {
+        std::printf("explore %7.1f s: Enter for the text input\n", t);
+        explore_at(t, KEY, 0x1C0D);
+        text_input_at = t;                       // again in 20 s if that was not enough
+        return;
+    }
     // the game waits for the player only while its pointer is shown
     if (m.r16(exesym::Mouse) >= 0xFFFE) {
         if (explore_quiet < 0) explore_quiet = t;

@@ -9,3 +9,18 @@ WaitTimer
 # SubTitle: the automatic exploration (host/explore.cpp) notices the hint texts of the game, e.g.
 # the one it shows while an object is held over a hotspot it can be used on.
 SubTitle
+# Gets: the text input of the game (the name of a saved game); the exploration types only into it.
+Gets
+
+# Fixes of bugs of the game itself (found by the automatic exploration; on DOS they ended in a page
+# fault, see host_hook in host/machine.cpp):
+# BlkRamInit frees all memory blocks at a scene change (and a load), but the inventory bar can still
+# hold its work buffers BandeTempo and BandeTempoBis; hiding the bar then overwrote the new scene's data.
+BlkRamInit
+# MkBandeObj makes the bar's buffers anew on every call without freeing the previous ones.
+0x2164C MkBandeObj_Bis
+0x2170B MkBandeObj_Tempo
+# Persp3D takes a character's frame as direction * phases + phase. Races in the game's scripts (a
+# dialogue while a gag starts, a second click while the character speaks) can leave a one-direction
+# animation (talking, gags) with another direction, which points past the end of its table.
+0x25CE1 Persp3D_Frame

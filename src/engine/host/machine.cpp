@@ -328,11 +328,47 @@ void host_poll(Cpu &c, Arena &m) {
     else c.budget = POLL_INTERVAL;       // unit tests run recompiled functions without a machine
 }
 
+namespace {
+constexpr uint32_t BANDE_TEMPO = 0x52730, BANDE_TEMPO_BIS = 0x52734;   // the inventory bar's buffers
+constexpr uint32_t BLKRAM_DESTROY = 0x1B1ED;
+
+// frees the game's memory block whose address is in the variable at var (BlkRamDestroy)
+void free_game_block(Machine &mc, uint32_t var) {
+    if (const uint32_t block = mc.m.r32(var)) {
+        mc.call_guest(BLKRAM_DESTROY, false, block);
+        mc.m.w32(var, 0);
+    }
+}
+}  // namespace
+
 void host_hook(Cpu &c, Arena &m, uint32_t addr) {
     Machine &mc = machine();
     switch (addr) {
-    case hle::k_WaitTimer: mc.idle_wait(); break;
+    case hle::k_WaitTimer:
+        mc.frame_wait_at = mc.now();
+        mc.idle_wait();
+        break;
     case hle::k_SubTitle: mc.title_shown = mc.now(); break;
+    case hle::k_Gets: mc.text_input_at = mc.now(); break;
+
+    // bugs of the game itself (data/recomp_hooks.txt)
+    case hle::k_BlkRamInit:                  // all blocks are freed, the bar's buffers with them
+        m.w32(BANDE_TEMPO, 0);
+        m.w32(BANDE_TEMPO_BIS, 0);
+        break;
+    case hle::k_hook_MkBandeObj_Bis:         // the buffers of its previous call
+        free_game_block(mc, BANDE_TEMPO_BIS);
+        break;
+    case hle::k_hook_MkBandeObj_Tempo:
+        free_game_block(mc, BANDE_TEMPO);
+        break;
+    case hle::k_hook_Persp3D_Frame: {
+        // eax = direction * phases + phase into the offset table at esi, whose last entry is the end of
+        // the file; past the table: the frame of this phase in direction 0
+        const uint32_t frames = m.r32(c.esi) / 4 - 1;
+        if (int32_t(frames) > 0 && c.eax >= frames) c.eax = m.r32(c.ebp + 0x60) % frames;
+        break;
+    }
     case hle::k_hook_PlayFIL_WaitSound: {
         // loop "dec eax / cmp wSOSSamplePending, 1": wait for the sound callback in real time,
         // with a time-based instead of the original iteration-based timeout

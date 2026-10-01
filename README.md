@@ -156,10 +156,13 @@ tools/       build.ps1 (build.cmd), package.py, replay_tests.py
 Some behaviour of the 1996 program had to be handled explicitly, e.g. wait loops calibrated for
 1996 CPUs (host hooks instead of busy loops), a patch the game applies to its own sound library at
 start-up, and a memory allocation that only works if the first request for 640 KB of DOS memory
-fails – as it always did on real PCs. The game also has a few rare bugs of its own that make it use
-garbage addresses (found by the automatic exploration below, e.g. a scene change while the
-inventory bar holds an object). On DOS that ended with a page fault; blub stops with an error report
-at the first access outside the game's memory instead of letting it overwrite its own data.
+fails – as it always did on real PCs. The game also has a few rare bugs of its own, found by the
+automatic exploration below: a scene change while the inventory bar holds an object left the bar
+with freed memory, and some races in its scripts (a dialogue while an idle animation starts, a
+second click while a character speaks) left a character with a one-direction animation looking in
+another direction. On DOS these ended with a page fault; blub fixes them (`data/recomp_hooks.txt`).
+Should the game use any other address outside its memory, blub stops with an error report instead
+of letting it overwrite the game's own data.
 
 Tests (need the German CDs): `cmake --build build --target blub_tests`, then
 `build/blub_tests tests/fixtures <ISO folder>`.
