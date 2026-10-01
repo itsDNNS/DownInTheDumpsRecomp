@@ -100,6 +100,9 @@ class Program:
         self.hook_names = {l.strip() for l in (CONFIG / 'recomp_hooks.txt').read_text().splitlines()
                            if l.strip() and not l.startswith('#')}
         self.hook_addrs = {int(n.split()[0], 16) for n in self.hook_names if n.startswith('0x')}
+        # "0x<address> <name> -> 0x<target>": host_branch(c, m, address) decides whether to jump there
+        self.branch_hooks = {int(n.split()[0], 16): int(n.split()[3], 16) for n in self.hook_names
+                             if n.startswith('0x') and n.split()[2:3] == ['->']}
         self.hook_names = {n for n in self.hook_names if not n.startswith('0x')}
         self.hooks = {e for e, f in self.funcs.items() if f['name'] in self.hook_names}
         # corrections of Ghidra's function boundaries (data/recomp_code.txt)
@@ -605,12 +608,19 @@ class FuncLifter:
             stmts.append((i, self.lift(i)))
         entries = sorted(self.p.secondary.get(self.e, set()))
         labels.update(entries)
+        for a, t in self.p.branch_hooks.items():
+            if self.inside(a):
+                if not self.inside(t):
+                    raise LiftError('branch hook at %#x: target %#x is not in the function' % (a, t))
+                labels.add(t)
         if self.indirect_local:
             labels.update(f['addrs'])
         for idx, (i, s) in enumerate(stmts):
             if i.address in labels:
                 body.append('L_%X:' % i.address)
-            if i.address in self.p.hook_addrs:
+            if i.address in self.p.branch_hooks:
+                body.append('    if (host_branch(c, m, 0x%Xu)) goto L_%X;' % (i.address, self.p.branch_hooks[i.address]))
+            elif i.address in self.p.hook_addrs:
                 body.append('    host_hook(c, m, 0x%Xu);' % i.address)
             body.append('    %s  // %X %s %s' % (s, i.address, i.mnemonic, i.op_str))
             # falling off a body range: continue at the next instruction of the program

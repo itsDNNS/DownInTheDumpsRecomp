@@ -331,6 +331,7 @@ void host_poll(Cpu &c, Arena &m) {
 
 namespace {
 constexpr uint32_t BANDE_TEMPO = 0x52730, BANDE_TEMPO_BIS = 0x52734;   // the inventory bar's buffers
+constexpr uint32_t BANDE5_SIZE = 0x9B00;                  // what Bande5 writes into BandeTempo
 constexpr uint32_t X_SPOT = 0x52176, Y_SPOT = 0x52178;   // the click point of the buttons
 constexpr uint32_t CAMERA_CLICKED = 0x521BE, CAMERA_RECORD = 0x521C0, CAMERA_REPLAY = 0x521C2;
 constexpr uint32_t INV_ALT_REV = 0x255F3, PILE_X_PTR = 0x51E86, POV_BUTTON = 0x51B3E;
@@ -419,6 +420,10 @@ void host_hook(Cpu &c, Arena &m, uint32_t addr) {
     case hle::k_hook_MkBandeObj_Tempo:
         free_game_block(mc, BANDE_TEMPO);
         break;
+    case hle::k_BlkRamCreate:                // eax: the variable for the block, ecx: its size
+        // Bande5 writes 0x9B00 bytes into BandeTempo (the buffers are swapped, so both get them)
+        if ((c.eax == BANDE_TEMPO || c.eax == BANDE_TEMPO_BIS) && c.ecx < BANDE5_SIZE) c.ecx = BANDE5_SIZE;
+        break;
     case hle::k_hook_ScrutAllButtons_Spot: {
         // MouseAff puts the pointer sprite at the mouse minus its hotspot, kept inside the screen
         // ([ebp - 4]: the sprite; +0x10 x, +0x12 y, +0x18 width, +0x1A height, +0x28/+0x2A hotspot).
@@ -483,6 +488,19 @@ void host_hook(Cpu &c, Arena &m, uint32_t addr) {
         break;
     }
     default: break;
+    }
+}
+
+bool host_branch(Cpu &c, Arena &m, uint32_t addr) {
+    switch (addr) {
+    case hle::k_hook_ANI_SS2_NoPackets:      // ax: the packet count of the line
+    case hle::k_hook_ANI_SS2Tr_NoPackets:
+        if (c.eax & 0xFFFF) return false;
+        if (g_machine) g_machine->trace("fix: an SS2 line without packets");
+        return true;
+    case hle::k_hook_ANI_SS2Tr_NoWords:      // ecx: the word count of the packet (a fill)
+        return c.ecx == 0;
+    default: return false;
     }
 }
 

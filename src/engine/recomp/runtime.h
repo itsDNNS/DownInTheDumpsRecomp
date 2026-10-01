@@ -21,6 +21,7 @@ uint32_t host_in(Cpu &c, uint16_t port, int size);
 void host_out(Cpu &c, uint16_t port, uint32_t value, int size);
 void host_poll(Cpu &c, Arena &m);                         // timer events, input, presenting the screen
 void host_hook(Cpu &c, Arena &m, uint32_t addr);          // entry of a function in data/recomp_hooks.txt
+bool host_branch(Cpu &c, Arena &m, uint32_t addr);        // "0x<addr> <name> -> 0x<target>": jump there?
 
 // indirect call: the return address is already pushed
 inline void call_address(Cpu &c, Arena &m, uint32_t addr) {

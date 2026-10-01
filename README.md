@@ -169,7 +169,12 @@ automatic exploration below, which blub fixes (`data/recomp_hooks.txt`):
 - the end of a gag or of a video sequence freed the memory of a scene transition that had started
   meanwhile, and the next sound overwrote the transition's data while it played;
 - in chapter 1, leaving the scene with the slow-motion button while its looping animation played
-  made the button wait forever the next time it was pressed, with the pointer hidden.
+  made the button wait forever the next time it was pressed, with the pointer hidden;
+- the inventory bar, sliding away, wrote 1280 bytes past the end of its buffer into the next memory
+  block – in chapter 2 the header of a sound animation, which after saving (the game reloads itself
+  then) ran past its data;
+- a gag of the English release (chapters 1 and 6) has picture deltas with empty lines, on which the
+  game's decoder ran through all memory.
 
 Should the game use any other address outside its memory, blub stops with an error report instead
 of letting it overwrite the game's own data.
