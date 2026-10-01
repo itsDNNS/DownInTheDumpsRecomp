@@ -156,11 +156,21 @@ tools/       build.ps1 (build.cmd), package.py, replay_tests.py
 Some behaviour of the 1996 program had to be handled explicitly, e.g. wait loops calibrated for
 1996 CPUs (host hooks instead of busy loops), a patch the game applies to its own sound library at
 start-up, and a memory allocation that only works if the first request for 640 KB of DOS memory
-fails – as it always did on real PCs. The game also has a few rare bugs of its own, found by the
-automatic exploration below: a scene change while the inventory bar holds an object left the bar
-with freed memory, and some races in its scripts (a dialogue while an idle animation starts, a
-second click while a character speaks) left a character with a one-direction animation looking in
-another direction. On DOS these ended with a page fault; blub fixes them (`data/recomp_hooks.txt`).
+fails – as it always did on real PCs. The game also has a few bugs of its own, found by the
+automatic exploration below, which blub fixes (`data/recomp_hooks.txt`):
+
+- a scene change while the inventory bar holds an object left the bar with freed memory;
+- a dialogue or gag starting while another one runs on the same character (a dialogue while an idle
+  animation starts, a second click while the character speaks) lost the character's walking
+  animation, and walking then read past the end of a frame table – on DOS both ended with a page
+  fault;
+- near the screen edges the click point followed the pointer sprite, which is kept on the screen,
+  instead of the mouse: with the open hand as pointer, LOAD in the top bar could not be clicked;
+- the end of a gag or of a video sequence freed the memory of a scene transition that had started
+  meanwhile, and the next sound overwrote the transition's data while it played;
+- in chapter 1, leaving the scene with the slow-motion button while its looping animation played
+  made the button wait forever the next time it was pressed, with the pointer hidden.
+
 Should the game use any other address outside its memory, blub stops with an error report instead
 of letting it overwrite the game's own data.
 

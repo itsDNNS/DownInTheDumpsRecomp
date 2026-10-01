@@ -24,3 +24,23 @@ BlkRamInit
 # dialogue while a gag starts, a second click while the character speaks) can leave a one-direction
 # animation (talking, gags) with another direction, which points past the end of its table.
 0x25CE1 Persp3D_Frame
+# The cause of those races: a gag or a dialogue started while another one ran on the same character
+# and overwrote the saved normal animation (the character then walked with the gag or talking
+# frames). The running one now ends first, the way the game ends it itself.
+0x2266B PlaySpritGag_Start
+0x22757 PlaySpritDlg_Start
+# ScrutAllButtons tests the buttons at the pointer sprite's position plus its hotspot, but the sprite
+# is kept on the screen: near an edge the click point was not where the mouse was. With the open
+# hand as pointer (hotspot 33 pixels down) LOAD in the top bar could not be clicked at all.
+0x12691 ScrutAllButtons_Spot
+# The end of a gag (TokenGag) or of a FIL token (TokenFil) frees all memory taken from the top of
+# the pools (FMem1 = Fin1, FMem2 = Fin2). An IPOV that started meanwhile keeps its tracks there;
+# freeing them let the next sound overwrite them while the IPOV played. Its own end frees them.
+0x24869 TokenGag_FreeTop
+0x24BB9 TokenFil_FreeTop
+0x24BC3 TokenFil_FreeTop2
+# Fork starts a new script thread (the call of MoteurExec). Cartoon 1's slow-motion machine runs a
+# forked loop that plays its animation every few seconds and clears a variable meanwhile; its button
+# waits for that variable with the pointer hidden. A scene change during the animation killed the
+# loop with the variable cleared, and the next press of the button waited forever.
+0x181FB Fork_New

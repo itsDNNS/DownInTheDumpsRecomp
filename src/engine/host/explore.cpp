@@ -88,7 +88,7 @@ void Machine::explore_click(int x, int y, double t) {
 void Machine::explore_save(double t) {
     std::printf("explore %7.1f s: save the game\n", t);
     explore_at(t, MOVE, 320, 30);
-    explore_at(t + 1.4, MOVE, 452, 45);
+    explore_at(t + 1, MOVE, 452, 45);            // the game sees it in its next frames (8 per second)
     explore_at(t + 1.5, TOP_CLICK, 452, 45);     // SAVE
     explore_slot_tries = 0;
     explore_at(t + 12, SAVE_SLOT);
@@ -100,7 +100,7 @@ void Machine::explore_save(double t) {
 void Machine::explore_load(double t) {
     std::printf("explore %7.1f s: load the game\n", t);
     explore_at(t, MOVE, 320, 30);
-    explore_at(t + 1.4, MOVE, 452, 15);
+    explore_at(t + 1, MOVE, 452, 15);
     explore_at(t + 1.5, TOP_CLICK, 452, 15);     // LOAD
     explore_click(162, 168, t + 13);             // the first slot
     explore_next = t + 22;

@@ -123,6 +123,7 @@ public:
     uint32_t explore_rng = 1;
     double title_shown = -1;                 // the game showed a text (hint: SubTitle)
     double text_input_at = -1, frame_wait_at = 0;   // its text input (Gets) began; its frame wait
+    int mouse_reported_x = 0, mouse_reported_y = 0;  // the position int 33h reported last
     double probe_from = 0;
     int probe_tries = 0;
     double explore_next = 0, explore_quiet = -1;

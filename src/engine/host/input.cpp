@@ -242,8 +242,10 @@ void Machine::int33(Cpu &r) {
         poll();
         present_if_due();                     // the pointer was drawn since the last request
         lo(r.ebx, uint32_t(mouse_buttons));
-        lo(r.ecx, uint32_t(std::clamp(mouse_x, mx_min, mx_max)));
-        lo(r.edx, uint32_t(std::clamp(mouse_y, my_min, my_max)));
+        mouse_reported_x = std::clamp(mouse_x, mx_min, mx_max);
+        mouse_reported_y = std::clamp(mouse_y, my_min, my_max);
+        lo(r.ecx, uint32_t(mouse_reported_x));
+        lo(r.edx, uint32_t(mouse_reported_y));
         break;
     case 0x0004: {
         mouse_x = int16_t(r.ecx);

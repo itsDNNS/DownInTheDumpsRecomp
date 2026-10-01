@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdarg>
+#include <iterator>
 #include <stdexcept>
 
 #include "gfx/display.h"
@@ -330,7 +331,37 @@ void host_poll(Cpu &c, Arena &m) {
 
 namespace {
 constexpr uint32_t BANDE_TEMPO = 0x52730, BANDE_TEMPO_BIS = 0x52734;   // the inventory bar's buffers
+constexpr uint32_t X_SPOT = 0x52176, Y_SPOT = 0x52178;   // the click point of the buttons
+constexpr uint32_t CAMERA_CLICKED = 0x521BE, CAMERA_RECORD = 0x521C0, CAMERA_REPLAY = 0x521C2;
+constexpr uint32_t INV_ALT_REV = 0x255F3, PILE_X_PTR = 0x51E86, POV_BUTTON = 0x51B3E;
+constexpr uint32_t FMEM1 = 0x42ED4, FMEM2 = 0x42EF4;      // the tops of the memory pools in use
+constexpr uint32_t TOKENS = 0x52F73, PTR_TOKENS = 0x52F6F, TOKEN_SIZE = 0x30;
 constexpr uint32_t BLKRAM_DESTROY = 0x1B1ED;
+constexpr uint32_t PTR_EXE_BASE = 0x512CC;                 // the loaded script
+constexpr uint32_t LOAD_GAME_GAG_RETURN = 0x2F1CC;         // LoadGame restarting the characters' gags
+constexpr uint32_t V30 = 0x52212;                          // script variable 30
+
+// Cartoon 1's slow-motion machine: a forked loop that plays the machine's animation every few seconds
+// with V30 = 0 meanwhile; its button waits "while V30 == 0" with the pointer hidden. The loop is
+// recognized by a hash (FNV-1a) of its 51 script words, with its jump targets (at these word positions)
+// taken relative to its start: the same in the German and the English release.
+constexpr size_t SLOW_MOTION_WORDS = 51;
+constexpr size_t SLOW_MOTION_TARGETS[] = {3, 8, 12, 15, 19, 21, 28, 35, 44, 48, 50};
+constexpr uint32_t SLOW_MOTION_HASH = 0xD894A527;
+
+bool is_slow_motion_loop(const Arena &m, uint32_t code) {
+    const uint32_t label = code - m.r32(PTR_EXE_BASE);
+    uint32_t hash = 0x811C9DC5;
+    for (size_t i = 0, t = 0; i < SLOW_MOTION_WORDS; i++) {
+        uint16_t w = m.r16(code + 2 * uint32_t(i));
+        if (t < std::size(SLOW_MOTION_TARGETS) && SLOW_MOTION_TARGETS[t] == i) {
+            w = uint16_t(w - label);
+            t++;
+        }
+        for (const uint8_t b : {uint8_t(w), uint8_t(w >> 8)}) hash = (hash ^ b) * 0x01000193u;
+    }
+    return hash == SLOW_MOTION_HASH;
+}
 
 // frees the game's memory block whose address is in the variable at var (BlkRamDestroy)
 void free_game_block(Machine &mc, uint32_t var) {
@@ -338,6 +369,31 @@ void free_game_block(Machine &mc, uint32_t var) {
         mc.call_guest(BLKRAM_DESTROY, false, block);
         mc.m.w32(var, 0);
     }
+}
+
+// ends the gag or talking animation a character (SPERSO at perso) shows instead of its normal one,
+// like MovePerso at its end: InvAltRev, then the script that waits for it continues (RestartAd)
+void end_alternate(Machine &mc, uint32_t perso) {
+    Arena &m = mc.m;
+    // Attr bit 15: such an animation, and its file (DBDPtr) is loaded
+    if (!(m.r16(perso) & 0x8000) || !m.r32(perso + 0x24)) return;
+    mc.trace("fix: character %05X: its running gag/talking animation ends first", perso);
+    mc.call_guest(INV_ALT_REV, false, perso);
+    if (const uint32_t restart = m.r32(perso + 0x50)) {
+        const uint32_t pile = m.r32(PILE_X_PTR);
+        m.w32(pile, restart);
+        m.w32(pile + 6, m.r32(POV_BUTTON));
+        m.w32(PILE_X_PTR, pile + 10);
+        m.w32(perso + 0x50, 0);
+    }
+}
+
+// an IPOV loads (TokenIPov, type 6) or plays (TokenIPov2, type 7): one of the game's tokens
+bool ipov_running(const Arena &m) {
+    const uint32_t end = std::min(m.r32(PTR_TOKENS), TOKENS + 25 * TOKEN_SIZE);
+    for (uint32_t t = TOKENS; t < end; t += TOKEN_SIZE)
+        if (m.r16(t) == 6 || m.r16(t) == 7) return true;
+    return false;
 }
 }  // namespace
 
@@ -353,6 +409,7 @@ void host_hook(Cpu &c, Arena &m, uint32_t addr) {
 
     // bugs of the game itself (data/recomp_hooks.txt)
     case hle::k_BlkRamInit:                  // all blocks are freed, the bar's buffers with them
+        if (m.r32(BANDE_TEMPO) || m.r32(BANDE_TEMPO_BIS)) mc.trace("fix: the inventory bar's buffers are gone");
         m.w32(BANDE_TEMPO, 0);
         m.w32(BANDE_TEMPO_BIS, 0);
         break;
@@ -361,6 +418,49 @@ void host_hook(Cpu &c, Arena &m, uint32_t addr) {
         break;
     case hle::k_hook_MkBandeObj_Tempo:
         free_game_block(mc, BANDE_TEMPO);
+        break;
+    case hle::k_hook_ScrutAllButtons_Spot: {
+        // MouseAff puts the pointer sprite at the mouse minus its hotspot, kept inside the screen
+        // ([ebp - 4]: the sprite; +0x10 x, +0x12 y, +0x18 width, +0x1A height, +0x28/+0x2A hotspot).
+        // Where it was held back at an edge, the click point is the mouse itself (driver position / 4).
+        // The game's own recording and replay of the pointer keep their positions.
+        if (m.r16(CAMERA_CLICKED) || m.r16(CAMERA_RECORD) || m.r16(CAMERA_REPLAY)) break;
+        const uint32_t spr = m.r32(c.ebp - 4);
+        const int sx = int16_t(m.r16(spr + 0x10)), sy = int16_t(m.r16(spr + 0x12));
+        const int w = int16_t(m.r16(spr + 0x18)), h = int16_t(m.r16(spr + 0x1A));
+        const int hx = int16_t(m.r16(spr + 0x28)), hy = int16_t(m.r16(spr + 0x2A));
+        const int mx = mc.mouse_reported_x >> 2, my = mc.mouse_reported_y >> 2;
+        const int xs = int16_t(m.r16(X_SPOT)), ys = int16_t(m.r16(Y_SPOT));
+        if ((sx == 0 && mx - hx < 0) || (sx == SCREEN_W - w && mx - hx > sx)) m.w16(X_SPOT, uint32_t(mx));
+        if ((sy == 0 && my - hy < 0) || (sy == SCREEN_H - h && my - hy > sy)) m.w16(Y_SPOT, uint32_t(my));
+        if (xs != int16_t(m.r16(X_SPOT)) || ys != int16_t(m.r16(Y_SPOT)))
+            mc.trace("fix: click point %d,%d instead of %d,%d", int16_t(m.r16(X_SPOT)), int16_t(m.r16(Y_SPOT)), xs, ys);
+        break;
+    }
+    case hle::k_hook_TokenGag_FreeTop:       // "mov [FMem1], eax" with eax = Fin1
+    case hle::k_hook_TokenFil_FreeTop:
+        if (ipov_running(m)) {
+            mc.trace("fix: the IPOV keeps its memory (FMem1 %08X)", m.r32(FMEM1));
+            c.eax = m.r32(FMEM1);
+        }
+        break;
+    case hle::k_hook_TokenFil_FreeTop2:      // "mov [FMem2], eax" with eax = Fin2
+        if (ipov_running(m)) c.eax = m.r32(FMEM2);
+        break;
+    case hle::k_hook_PlaySpritGag_Start:     // ebp: the character
+        // LoadGame restarts the gags of the loaded characters: none of them runs yet
+        if (m.r32(c.esp) == LOAD_GAME_GAG_RETURN) break;
+        end_alternate(mc, c.ebp);
+        break;
+    case hle::k_hook_PlaySpritDlg_Start:
+        end_alternate(mc, c.ebp);
+        break;
+    case hle::k_hook_Fork_New:               // eax: the code of the new script thread
+        // a new loop of the slow-motion machine: no animation of an earlier one runs any more
+        if (is_slow_motion_loop(m, c.eax) && m.r16(V30) == 0) {
+            mc.trace("fix: the slow-motion machine's loop restarts with V30 = 1");
+            m.w16(V30, 1);
+        }
         break;
     case hle::k_hook_Persp3D_Frame: {
         // eax = direction * phases + phase into the offset table at esi, whose last entry is the end of
